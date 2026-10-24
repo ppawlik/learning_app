@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+// HEIC/HEIF is accepted on upload only; the API converts it to JPEG before storing.
+export const HEIC_IMAGE_TYPES = ['image/heic', 'image/heif'] as const;
+export const HEIC_EXTENSIONS = ['.heic', '.heif'] as const;
+export const UPLOAD_IMAGE_ACCEPT = [...ALLOWED_IMAGE_TYPES, ...HEIC_IMAGE_TYPES, ...HEIC_EXTENSIONS].join(',');
+export const isHeicFile = (mimeType: string, filename: string): boolean =>
+  (HEIC_IMAGE_TYPES as readonly string[]).includes(mimeType.toLowerCase()) ||
+  HEIC_EXTENSIONS.some((ext) => filename.toLowerCase().endsWith(ext));
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_IMAGES_PER_LEARNING = 20;
 

@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
 import type { ClaudeService } from '../claude/client.js';
@@ -9,7 +10,9 @@ function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : 'Unknown error';
 }
 
-export async function generateQuestionnaire(db: Db, claude: ClaudeService, questionnaireId: number) {
+export async function generateQuestionnaire(db: Db, claude: ClaudeService, questionnaireId: number, log: FastifyBaseLogger) {
+  const started = Date.now();
+  log.info({ questionnaireId }, 'questionnaire generation started');
   try {
     const q = db.select().from(questionnaires).where(eq(questionnaires.id, questionnaireId)).get();
     if (!q) return;
@@ -31,7 +34,12 @@ export async function generateQuestionnaire(db: Db, claude: ClaudeService, quest
         .run();
       tx.update(questionnaires).set({ status: 'ready' }).where(eq(questionnaires.id, questionnaireId)).run();
     });
+    log.info(
+      { questionnaireId, questionCount: result.questions.length, durationMs: Date.now() - started },
+      'questionnaire generated',
+    );
   } catch (err) {
+    log.error({ err, questionnaireId, durationMs: Date.now() - started }, 'questionnaire generation failed');
     db.update(questionnaires)
       .set({ status: 'failed', error: errorMessage(err) })
       .where(eq(questionnaires.id, questionnaireId))
@@ -44,7 +52,9 @@ export function computeSuccessRate(verdicts: ('passed' | 'failed')[]) {
   return Math.round((verdicts.filter((v) => v === 'passed').length / verdicts.length) * 100);
 }
 
-export async function reviewSubmission(db: Db, claude: ClaudeService, submissionId: number) {
+export async function reviewSubmission(db: Db, claude: ClaudeService, submissionId: number, log: FastifyBaseLogger) {
+  const started = Date.now();
+  log.info({ submissionId }, 'submission review started');
   try {
     const sub = db.select().from(submissions).where(eq(submissions.id, submissionId)).get();
     if (!sub) return;
@@ -84,7 +94,12 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
         .where(eq(submissions.id, submissionId))
         .run();
     });
+    log.info(
+      { submissionId, successRate: computeSuccessRate(verdicts), durationMs: Date.now() - started },
+      'submission reviewed',
+    );
   } catch (err) {
+    log.error({ err, submissionId, durationMs: Date.now() - started }, 'submission review failed');
     db.update(submissions)
       .set({ status: 'failed', error: errorMessage(err) })
       .where(eq(submissions.id, submissionId))

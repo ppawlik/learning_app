@@ -45,7 +45,8 @@ export const questionnaireRoutes =
           .run();
         return s;
       });
-      void reviewSubmission(db, claude, sub.id);
+      req.log.info({ submissionId: sub.id, questionnaireId: id }, 'submission created');
+      void reviewSubmission(db, claude, sub.id, req.log);
       return reply.status(202).send({ id: sub.id, status: sub.status });
     });
 

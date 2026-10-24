@@ -10,6 +10,7 @@ pnpm workspace monorepo (`apps/api`, `apps/web`, `packages/shared`). Run from th
 - `pnpm typecheck`: `tsc` in every package. There is no linter configured.
 - `pnpm test`: Vitest in api and web. Set `NODE_ENV=test` when running API tests so Fastify's logger stays quiet.
 - Single package or test: `pnpm --filter @learning/api test -- -t "full flow"`, or `pnpm --filter @learning/web test -- AnswerForm`.
+- Logging: pino to stdout and a file. Env `LOG_LEVEL` (default `info`), `LOG_FILE` (default `logs/api.log` in `apps/api`; `off` disables), `LOG_STDOUT` (default `true`). Use the injected logger, never `console.log`.
 - `pnpm build`: the API "build" is only a typecheck; the web build produces `apps/web/dist`.
 
 ## Docs

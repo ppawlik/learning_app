@@ -4,3 +4,5 @@ dist
 *.db
 *.db-*
 apps/api/uploads
+
+logs/

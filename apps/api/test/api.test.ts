@@ -1,11 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
+import pino from 'pino';
 import os from 'node:os';
 import path from 'node:path';
 import { buildApp } from '../src/app.js';
 import { createDb } from '../src/db/index.js';
 import { computeSuccessRate } from '../src/services/questionnaires.js';
 import type { ClaudeService } from '../src/claude/client.js';
+
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+vi.mock('heic-convert', () => ({
+  default: async ({ buffer }: { buffer: Buffer }) => {
+    if (buffer.toString() === 'not heic') throw new Error('bad');
+    return JPEG;
+  },
+}));
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
@@ -99,13 +108,35 @@ describe('api', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('converts HEIC uploads to JPEG', async () => {
+    const { id } = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+    // Browsers often send HEIC as application/octet-stream, so the extension must count too.
+    for (const [name, type] of [['a.heic', 'image/heic'], ['b.HEIC', 'application/octet-stream']]) {
+      const res = await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody(name, type, Buffer.from('heic')) });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().mimeType).toBe('image/jpeg');
+      const file = await app.inject({ method: 'GET', url: `/api/images/${res.json().id}/file` });
+      expect(file.headers['content-type']).toContain('image/jpeg');
+      expect(file.rawPayload.equals(JPEG)).toBe(true);
+    }
+  });
+
+  it('rejects unreadable HEIC uploads', async () => {
+    const { id } = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+    const res = await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.heic', 'image/heic', Buffer.from('not heic')) });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('rejects invalid learning input', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: '' } });
     expect(res.statusCode).toBe(400);
   });
 
   it('marks a questionnaire failed when Claude errors', async () => {
+    const logLines: { level: number; msg: string; err: { message: string } }[] = [];
+    const logger = pino({ level: 'info' }, { write: (chunk: string) => void logLines.push(JSON.parse(chunk)) });
     const failing = buildApp({
+      logger,
       db: createDb(':memory:'),
       claude: { ...fakeClaude, generateQuestionnaire: async () => { throw new Error('boom'); } },
       uploadsDir: dir,
@@ -117,6 +148,7 @@ describe('api', () => {
     const qn = (await failing.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
     expect(qn.status).toBe('failed');
     expect(qn.error).toBe('boom');
+    expect(logLines.some((l) => l.level === 50 && l.msg === 'questionnaire generation failed' && l.err.message === 'boom')).toBe(true);
     await failing.close();
   });
 });

@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from 'fastify';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs/promises';
 import {
@@ -88,18 +89,37 @@ const reviewTool: Anthropic.Tool = {
   },
 };
 
-export function createClaudeService(apiKey = config.anthropicApiKey): ClaudeService {
+// Large inputs (e.g. many textbook pages) can need long outputs; a too-small limit truncates the tool call.
+const MAX_OUTPUT_TOKENS = 16_000;
+
+export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anthropicApiKey): ClaudeService {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
   const client = new Anthropic({ apiKey, maxRetries: 3, timeout: 120_000 });
 
   async function callTool(tool: Anthropic.Tool, content: Anthropic.ContentBlockParam[]): Promise<unknown> {
+    const imageCount = content.filter((c) => c.type === 'image').length;
+    const started = Date.now();
+    log.info({ tool: tool.name, model: config.model, imageCount }, 'claude request');
     const res = await client.messages.create({
       model: config.model,
-      max_tokens: 4096,
+      max_tokens: MAX_OUTPUT_TOKENS,
       tools: [tool],
       tool_choice: { type: 'auto' },
       messages: [{ role: 'user', content: [...content, { type: 'text', text: `Respond only by calling the ${tool.name} tool.` }] }],
     });
+    log.info(
+      {
+        tool: tool.name,
+        durationMs: Date.now() - started,
+        stopReason: res.stop_reason,
+        inputTokens: res.usage.input_tokens,
+        outputTokens: res.usage.output_tokens,
+      },
+      'claude response',
+    );
+    if (res.stop_reason === 'max_tokens') {
+      throw new Error('Claude ran out of output tokens before finishing; ask for fewer questions or use fewer images');
+    }
     const block = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     if (!block) throw new Error('Claude did not return structured output');
     return block.input;

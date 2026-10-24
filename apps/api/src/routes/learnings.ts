@@ -2,10 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { eq, count, desc } from 'drizzle-orm';
+import convert from 'heic-convert';
 import type { FastifyPluginAsync } from 'fastify';
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGES_PER_LEARNING,
+  MAX_IMAGE_BYTES,
+  isHeicFile,
   createLearningSchema,
 } from '@learning/shared';
 import { schema } from '../db/index.js';
@@ -44,6 +47,7 @@ export const learningRoutes =
     app.post('/learnings', async (req, reply) => {
       const body = createLearningSchema.parse(req.body);
       const row = db.insert(learnings).values(body).returning().get();
+      req.log.info({ learningId: row.id }, 'learning created');
       return reply.status(201).send(row);
     });
 
@@ -67,6 +71,7 @@ export const learningRoutes =
       getLearning(id);
       db.delete(learnings).where(eq(learnings.id, id)).run();
       await fs.rm(path.join(uploadsDir, String(id)), { recursive: true, force: true });
+      req.log.info({ learningId: id }, 'learning deleted');
       return reply.status(204).send();
     });
 
@@ -79,22 +84,39 @@ export const learningRoutes =
       }
       const file = await req.file();
       if (!file) throw new HttpError(400, 'No file uploaded');
-      if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.mimetype)) {
+      const heic = isHeicFile(file.mimetype, file.filename);
+      if (!heic && !(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.mimetype)) {
         file.file.resume();
-        throw new HttpError(400, 'Only JPEG, PNG, GIF and WebP images are allowed');
+        throw new HttpError(400, 'Only JPEG, PNG, GIF, WebP and HEIC images are allowed');
       }
-      const buffer = await file.toBuffer();
+      let buffer = await file.toBuffer();
       if (file.file.truncated) throw new HttpError(413, 'Image exceeds the 5 MB limit');
+      let mimeType = file.mimetype;
+      if (heic) {
+        // Claude and browsers cannot read HEIC, so store a JPEG.
+        try {
+          buffer = Buffer.from(await convert({ buffer, format: 'JPEG', quality: 0.9 }));
+        } catch (err) {
+          req.log.warn({ err, filename: file.filename }, 'HEIC conversion failed');
+          throw new HttpError(400, 'Could not read the HEIC image');
+        }
+        if (buffer.length > MAX_IMAGE_BYTES) throw new HttpError(413, 'Converted image exceeds the 5 MB limit');
+        mimeType = 'image/jpeg';
+      }
 
       const dir = path.join(uploadsDir, String(id));
       await fs.mkdir(dir, { recursive: true });
-      const filePath = path.join(dir, randomUUID() + EXT[file.mimetype]);
+      const filePath = path.join(dir, randomUUID() + EXT[mimeType]);
       await fs.writeFile(filePath, buffer);
       const row = db
         .insert(images)
-        .values({ learningId: id, filename: file.filename, mimeType: file.mimetype, path: filePath })
+        .values({ learningId: id, filename: file.filename, mimeType, path: filePath })
         .returning()
         .get();
+      req.log.info(
+        { imageId: row.id, learningId: id, mimeType, bytes: buffer.length, convertedFromHeic: heic },
+        'image uploaded',
+      );
       return reply.status(201).send(toImageDto(row));
     });
 
@@ -120,7 +142,8 @@ export const learningRoutes =
       const n = db.select({ n: count() }).from(images).where(eq(images.learningId, id)).get()!.n;
       if (n === 0) throw new HttpError(400, 'Upload at least one image first');
       const q = db.insert(questionnaires).values({ learningId: id, status: 'generating' }).returning().get();
-      void generateQuestionnaire(db, claude, q.id);
+      req.log.info({ questionnaireId: q.id, learningId: id, imageCount: n }, 'questionnaire requested');
+      void generateQuestionnaire(db, claude, q.id, req.log);
       return reply.status(202).send({ id: q.id, status: q.status });
     });
   };

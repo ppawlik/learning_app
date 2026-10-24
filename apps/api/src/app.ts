@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyBaseLogger } from 'fastify';
 import multipart from '@fastify/multipart';
 import { ZodError } from 'zod';
 import { MAX_IMAGE_BYTES } from '@learning/shared';
@@ -11,10 +11,14 @@ export interface AppDeps {
   db: Db;
   claude: ClaudeService;
   uploadsDir: string;
+  /** Defaults to Fastify's own logger, which is off under NODE_ENV=test. */
+  logger?: FastifyBaseLogger;
 }
 
 export function buildApp(deps: AppDeps) {
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
+  const app = deps.logger
+    ? Fastify({ loggerInstance: deps.logger })
+    : Fastify({ logger: process.env.NODE_ENV !== 'test' });
   app.register(multipart, { limits: { fileSize: MAX_IMAGE_BYTES, files: 1 } });
 
   app.setErrorHandler((err: unknown, _req, reply) => {
@@ -24,6 +28,7 @@ export function buildApp(deps: AppDeps) {
     const e = err as { statusCode?: number; message?: string };
     const status = e.statusCode ?? 500;
     if (status >= 500) app.log.error(err);
+    else app.log.warn({ status, err: e.message }, 'request rejected');
     return reply.status(status).send({ error: status >= 500 ? 'Internal server error' : e.message });
   });
 

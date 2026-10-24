@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from '@learning/shared';
+import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, UPLOAD_IMAGE_ACCEPT, isHeicFile } from '@learning/shared';
 import { api } from '../../api/client';
 import { Card, ErrorMessage, Spinner, buttonClass } from '../../components/ui';
 
@@ -29,7 +29,7 @@ export function LearningDetailPage() {
     mutationFn: async (files: File[]) => {
       setUploadError(null);
       for (const f of files) {
-        if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(f.type)) throw new Error(`${f.name}: unsupported type`);
+        if (!isHeicFile(f.type, f.name) && !(ALLOWED_IMAGE_TYPES as readonly string[]).includes(f.type)) throw new Error(`${f.name}: unsupported type`);
         if (f.size > MAX_IMAGE_BYTES) throw new Error(`${f.name}: larger than 5 MB`);
         await api.uploadImage(id, f);
       }
@@ -81,7 +81,7 @@ export function LearningDetailPage() {
           onDrop={onDrop}
           className={`rounded border-2 border-dashed p-6 text-center text-sm ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300'}`}
         >
-          <p className="mb-2 text-slate-500">Drag and drop images here (JPEG, PNG, GIF, WebP, max 5 MB)</p>
+          <p className="mb-2 text-slate-500">Drag and drop images here (JPEG, PNG, GIF, WebP, HEIC, max 5 MB)</p>
           <button type="button" className={buttonClass} onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
             {upload.isPending ? 'Uploading…' : 'Choose files'}
           </button>
@@ -89,7 +89,7 @@ export function LearningDetailPage() {
             ref={inputRef}
             type="file"
             multiple
-            accept={ALLOWED_IMAGE_TYPES.join(',')}
+            accept={UPLOAD_IMAGE_ACCEPT}
             aria-label="Upload images"
             className="hidden"
             onChange={(e) => {

@@ -31,7 +31,7 @@ Conventions for changing this codebase. They follow from the architecture and AD
 ## Claude calls
 
 - Go through the `ClaudeService` interface so tests can inject a fake. Never call the Anthropic SDK from anywhere else.
-- Use the `callTool` pattern: `tool_choice: auto`, an explicit "respond only by calling the X tool" instruction, then Zod validation of the tool input (ADR 0004).
+- Use the `callTool` pattern: `tool_choice: auto`, an explicit "respond only by calling the X tool" instruction, then Zod validation of the tool input (ADR 0004). Check `stop_reason`: a `max_tokens` stop truncates the tool call and must fail with a clear error, not a Zod message.
 - Treat Claude output as untrusted input: validate, handle a missing or malformed result as a failure, and handle questions missing from a review as failed.
 - Read the model from `ANTHROPIC_MODEL`; do not hardcode a model id in feature code.
 
@@ -42,6 +42,13 @@ Conventions for changing this codebase. They follow from the architecture and AD
 - Show `failed` states with the stored error message, and loading and empty states for every list.
 - Keep feature code in `src/features/{learnings,questionnaires,submissions}`; share only genuinely generic components.
 - Make forms accessible: labels tied to inputs, buttons for actions, links for navigation.
+
+## Logging
+
+- Use the injected logger (`req.log`, or the `log` argument of services and `createClaudeService`); do not use `console.log` or create loggers elsewhere. Only `src/server.ts` builds the real one.
+- Log ids, counts, durations and statuses. Never log prompts, questions, answers, image data, or secrets.
+- Log a handled error where it is caught (for example in a job's `catch`) with the error object under `err`, in addition to storing the message on the row.
+- Use `info` for lifecycle events, `warn` for rejected input, `error` for failures, `debug` for detail.
 
 ## Testing
 
