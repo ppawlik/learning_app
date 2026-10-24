@@ -1,0 +1,129 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { buildApp } from '../src/app.js';
+import { createDb } from '../src/db/index.js';
+import { computeSuccessRate } from '../src/services/questionnaires.js';
+import type { ClaudeService } from '../src/claude/client.js';
+
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+const fakeClaude: ClaudeService = {
+  async generateQuestionnaire() {
+    return {
+      questions: [
+        { text: 'Q1?', type: 'open', expectedAnswer: 'A1' },
+        { text: 'Q2?', type: 'multiple_choice', options: ['x', 'y'], expectedAnswer: 'x' },
+      ],
+    };
+  },
+  async reviewAnswers({ items }) {
+    return {
+      answers: items.map((i, idx) => ({
+        questionId: i.questionId,
+        verdict: idx === 0 ? ('passed' as const) : ('failed' as const),
+        feedback: 'fb',
+      })),
+      summary: 'ok',
+    };
+  },
+};
+
+function multipartBody(filename: string, type: string, data: Buffer) {
+  const boundary = '----t';
+  const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${type}\r\n\r\n`;
+  return {
+    payload: Buffer.concat([Buffer.from(head), data, Buffer.from(`\r\n--${boundary}--\r\n`)]),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  };
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+describe('api', () => {
+  let dir: string;
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-'));
+    app = buildApp({ db: createDb(':memory:'), claude: fakeClaude, uploadsDir: dir });
+  });
+  afterEach(async () => {
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('runs the full flow without leaking expected answers', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } });
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json();
+
+    const noImages = await app.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` });
+    expect(noImages.statusCode).toBe(400);
+
+    const up = multipartBody('a.png', 'image/png', PNG);
+    const upload = await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...up });
+    expect(upload.statusCode).toBe(201);
+
+    const gen = await app.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` });
+    expect(gen.statusCode).toBe(202);
+    await wait(50);
+
+    const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
+    expect(qn.status).toBe('ready');
+    expect(qn.questions).toHaveLength(2);
+    expect(JSON.stringify(qn)).not.toContain('expectedAnswer');
+
+    const sub = await app.inject({
+      method: 'POST',
+      url: `/api/questionnaires/${qn.id}/submissions`,
+      payload: { answers: [{ questionId: qn.questions[0].id, answer: 'A1' }] },
+    });
+    expect(sub.statusCode).toBe(202);
+    await wait(50);
+
+    const result = (await app.inject({ method: 'GET', url: `/api/submissions/${sub.json().id}` })).json();
+    expect(result.status).toBe('reviewed');
+    expect(result.successRate).toBe(50);
+    expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed']);
+  });
+
+  it('rejects non-image uploads', async () => {
+    const { id } = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+    const up = multipartBody('a.txt', 'text/plain', Buffer.from('hi'));
+    const res = await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...up });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects invalid learning input', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: '' } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('marks a questionnaire failed when Claude errors', async () => {
+    const failing = buildApp({
+      db: createDb(':memory:'),
+      claude: { ...fakeClaude, generateQuestionnaire: async () => { throw new Error('boom'); } },
+      uploadsDir: dir,
+    });
+    const { id } = (await failing.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+    await failing.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+    const gen = await failing.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` });
+    await wait(50);
+    const qn = (await failing.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
+    expect(qn.status).toBe('failed');
+    expect(qn.error).toBe('boom');
+    await failing.close();
+  });
+});
+
+describe('computeSuccessRate', () => {
+  it('computes a percentage', () => {
+    expect(computeSuccessRate(['passed', 'failed', 'passed'])).toBe(67);
+    expect(computeSuccessRate([])).toBe(0);
+  });
+});
