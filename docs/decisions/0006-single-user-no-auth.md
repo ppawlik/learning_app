@@ -9,4 +9,4 @@ The app is a personal learning tool run locally with the owner's Anthropic key i
 No accounts, sessions or per-user data. All learnings belong to the one local user.
 
 ## Consequences
-Do not expose the API on a public network as it is. Adding users later means a users table, ownership columns and auth middleware, which supersedes this ADR.
+Do not expose the API on a public network as it is. The Vite dev server listens on all interfaces (`server.host: true`) and the API on `0.0.0.0`, so anyone on the same LAN can reach the app; use it only on a trusted network. Adding users later means a users table, ownership columns and auth middleware, which supersedes this ADR.
