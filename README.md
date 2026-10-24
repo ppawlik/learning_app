@@ -15,3 +15,6 @@ pnpm dev               # web: http://localhost:5173, api: http://localhost:3001
 ```
 pnpm typecheck && pnpm test
 ```
+
+## Docs
+Requirements, architecture and design decisions are in [`docs/`](docs/README.md).
