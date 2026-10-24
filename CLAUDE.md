@@ -14,7 +14,7 @@ pnpm workspace monorepo (`apps/api`, `apps/web`, `packages/shared`). Run from th
 
 ## Docs
 
-Project knowledge lives in `docs/`: [requirements](docs/requirements.md) (FR-n IDs, known gaps), [architecture](docs/architecture.md) (async flow, data model, invariants), [glossary](docs/glossary.md), and [decisions/](docs/decisions/) (ADRs). Update them in the same change as the behavior they describe. Record a new design decision as a new ADR; never rewrite an accepted one, supersede it.
+Project knowledge lives in `docs/`: [requirements](docs/requirements.md) (FR-n IDs, known gaps), [architecture](docs/architecture.md) (async flow, data model, invariants), [glossary](docs/glossary.md), [best practices](docs/best-practices.md) (follow these when changing code), and [decisions/](docs/decisions/) (ADRs). Update them in the same change as the behavior they describe. For every change: before starting, review the relevant docs (requirements, architecture, glossary, ADRs) so the change fits existing decisions; before finishing, update every doc the change affects (new or changed FR-n, data model, flows, invariants, known gaps, glossary terms) and this file if a command or gotcha changed. A change is not done until the docs match the code. Record a new design decision as a new ADR; never rewrite an accepted one, supersede it.
 
 ## Architecture (gotchas; full detail in docs/architecture.md)
 
