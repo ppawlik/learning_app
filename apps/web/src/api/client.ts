@@ -40,5 +40,7 @@ export const api = {
   getQuestionnaire: (id: number) => request<Questionnaire>(`/api/questionnaires/${id}`),
   submitAnswers: (questionnaireId: number, input: SubmitAnswersInput) =>
     request<{ id: number }>(`/api/questionnaires/${questionnaireId}/submissions`, json('POST', input)),
+  retryReview: (submissionId: number) =>
+    request<{ id: number }>(`/api/submissions/${submissionId}/retry`, { method: 'POST' }),
   getSubmission: (id: number) => request<Submission>(`/api/submissions/${id}`),
 };

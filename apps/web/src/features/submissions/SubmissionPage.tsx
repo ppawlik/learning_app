@@ -1,20 +1,36 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { api } from '../../api/client';
-import { Card, ErrorMessage, Spinner } from '../../components/ui';
+import { Card, ErrorMessage, Spinner, buttonClass } from '../../components/ui';
 
 export function SubmissionPage() {
   const id = Number(useParams().id);
+  const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['submission', id],
     queryFn: () => api.getSubmission(id),
     refetchInterval: (q) => (q.state.data?.status === 'reviewing' ? 2000 : false),
   });
 
+  const retry = useMutation({
+    mutationFn: () => api.retryReview(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['submission', id] }),
+  });
+
   if (isLoading) return <Spinner />;
   if (error || !data) return <ErrorMessage error={error ?? new Error('Not found')} />;
   if (data.status === 'reviewing') return <Spinner label="Claude is reviewing your answers…" />;
-  if (data.status === 'failed') return <ErrorMessage error={new Error(data.error ?? 'Review failed')} />;
+  if (data.status === 'failed') {
+    return (
+      <div className="space-y-3">
+        <ErrorMessage error={new Error(data.error ?? 'Review failed')} />
+        {retry.error && <ErrorMessage error={retry.error} />}
+        <button className={buttonClass} disabled={retry.isPending} onClick={() => retry.mutate()}>
+          Retry review
+        </button>
+      </div>
+    );
+  }
 
   const passed = data.answers.filter((a) => a.verdict === 'passed').length;
 

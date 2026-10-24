@@ -25,7 +25,7 @@ Conventions for changing this codebase. They follow from the architecture and AD
 - Keep `src/db/schema.ts` and the `DDL` string in `src/db/index.ts` in sync. There are no migrations: for a column added to an existing table also add an `ALTER TABLE` check in `createDb` (with a test), otherwise existing dev databases break; for any other schema change say in the docs that it needs a fresh database.
 - Never send `questions.expected_answer` to the client. Add or keep a test whenever a new route returns questions.
 - Compute derived values (such as `successRate`) on the server from stored data, never trust them from Claude.
-- Fire-and-forget jobs must catch every error and write `failed` with a message. A job must never leave a row in `generating` or `reviewing` through a handled error.
+- Fire-and-forget jobs must catch every error and write `failed` with a message. A job must never leave a row in `generating` or `reviewing` through a handled error; rows left by a crash or restart are failed by `failInterruptedJobs` at startup.
 - Validate uploads against the limits in `packages/shared`, and store files only under `uploads/<learningId>/`.
 - Never log secrets such as `ANTHROPIC_API_KEY`, and do not commit `.env`.
 

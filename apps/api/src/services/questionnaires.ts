@@ -10,6 +10,23 @@ function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : 'Unknown error';
 }
 
+export const INTERRUPTED_MESSAGE = 'Interrupted by a server restart; please try again';
+
+/** Jobs run in-process (ADR 0003), so any row still in progress at startup belongs to a dead process. */
+export function failInterruptedJobs(db: Db, log: FastifyBaseLogger) {
+  const generating = db
+    .update(questionnaires)
+    .set({ status: 'failed', error: INTERRUPTED_MESSAGE })
+    .where(eq(questionnaires.status, 'generating'))
+    .run().changes;
+  const reviewing = db
+    .update(submissions)
+    .set({ status: 'failed', error: INTERRUPTED_MESSAGE })
+    .where(eq(submissions.status, 'reviewing'))
+    .run().changes;
+  if (generating + reviewing > 0) log.warn({ generating, reviewing }, 'marked interrupted jobs as failed');
+}
+
 export async function generateQuestionnaire(db: Db, claude: ClaudeService, questionnaireId: number, log: FastifyBaseLogger) {
   const started = Date.now();
   log.info({ questionnaireId }, 'questionnaire generation started');

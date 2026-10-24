@@ -1,6 +1,6 @@
 # 0003: Asynchronous Claude jobs, status polling
 
-Status: accepted
+Status: accepted (consequences amended by [0009](0009-recover-interrupted-jobs-at-startup.md))
 
 ## Context
 Vision calls and reviews can take many seconds, longer than is comfortable for one HTTP request.

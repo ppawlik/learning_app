@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildApp } from '../src/app.js';
 import { createDb } from '../src/db/index.js';
-import { computeSuccessRate } from '../src/services/questionnaires.js';
+import { computeSuccessRate, failInterruptedJobs, INTERRUPTED_MESSAGE } from '../src/services/questionnaires.js';
 import type { ClaudeService } from '../src/claude/client.js';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
@@ -169,6 +169,70 @@ describe('api', () => {
     expect(qn.error).toBe('boom');
     expect(logLines.some((l) => l.level === 50 && l.msg === 'questionnaire generation failed' && l.err.message === 'boom')).toBe(true);
     await failing.close();
+  });
+});
+
+describe('review retry and restart recovery', () => {
+  const setup = async (claude: ClaudeService) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-'));
+    const db = createDb(':memory:');
+    const app = buildApp({ db, claude, uploadsDir: dir });
+    const { id } = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+    await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+    const gen = await app.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` });
+    await wait(50);
+    const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
+    const sub = await app.inject({
+      method: 'POST',
+      url: `/api/questionnaires/${qn.id}/submissions`,
+      payload: { answers: [{ questionId: qn.questions[0].id, answer: 'A1' }] },
+    });
+    await wait(50);
+    return { app, db, dir, subId: sub.json().id as number, learningId: id as number };
+  };
+
+  it('retries a failed review and rejects a retry of a reviewed one', async () => {
+    let fail = true;
+    const { app, dir, subId } = await setup({
+      ...fakeClaude,
+      reviewAnswers: async (input) => {
+        if (fail) throw new Error('boom');
+        return fakeClaude.reviewAnswers(input);
+      },
+    });
+    expect((await app.inject({ method: 'GET', url: `/api/submissions/${subId}` })).json().status).toBe('failed');
+
+    fail = false;
+    const retry = await app.inject({ method: 'POST', url: `/api/submissions/${subId}/retry` });
+    expect(retry.statusCode).toBe(202);
+    await wait(50);
+    const after = (await app.inject({ method: 'GET', url: `/api/submissions/${subId}` })).json();
+    expect(after.status).toBe('reviewed');
+    expect(after.error).toBeNull();
+
+    expect((await app.inject({ method: 'POST', url: `/api/submissions/${subId}/retry` })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'POST', url: '/api/submissions/9999/retry' })).statusCode).toBe(404);
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('fails jobs left in progress by a previous process', async () => {
+    const { app, db, dir, subId, learningId } = await setup(fakeClaude);
+    const { schema } = await import('../src/db/index.js');
+    const stuckQn = db.insert(schema.questionnaires).values({ learningId, status: 'generating' }).returning().get();
+    db.update(schema.submissions).set({ status: 'reviewing' }).run();
+
+    failInterruptedJobs(db, app.log);
+
+    const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${stuckQn.id}` })).json();
+    expect(qn.status).toBe('failed');
+    expect(qn.error).toBe(INTERRUPTED_MESSAGE);
+    expect((await app.inject({ method: 'GET', url: `/api/submissions/${subId}` })).json().status).toBe('failed');
+    // finished rows are untouched
+    const learning = (await app.inject({ method: 'GET', url: `/api/learnings/${learningId}` })).json();
+    expect(learning.questionnaires.filter((q: { status: string }) => q.status === 'ready')).toHaveLength(1);
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });
 

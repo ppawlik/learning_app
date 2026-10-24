@@ -55,6 +55,17 @@ export const questionnaireRoutes =
       return reply.status(202).send({ id: sub.id, status: sub.status });
     });
 
+    app.post('/submissions/:id/retry', async (req, reply) => {
+      const { id } = idParams.parse(req.params);
+      const s = db.select().from(submissions).where(eq(submissions.id, id)).get();
+      if (!s) throw new HttpError(404, 'Submission not found');
+      if (s.status !== 'failed') throw new HttpError(409, 'Only a failed review can be retried');
+      db.update(submissions).set({ status: 'reviewing', error: null }).where(eq(submissions.id, id)).run();
+      req.log.info({ submissionId: id }, 'review retried');
+      void reviewSubmission(db, claude, id, req.log);
+      return reply.status(202).send({ id, status: 'reviewing' });
+    });
+
     app.get('/submissions/:id', async (req) => {
       const { id } = idParams.parse(req.params);
       const s = db.select().from(submissions).where(eq(submissions.id, id)).get();

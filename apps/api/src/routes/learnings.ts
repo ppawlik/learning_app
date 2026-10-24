@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { eq, count, desc } from 'drizzle-orm';
+import { eq, count, desc, inArray } from 'drizzle-orm';
 import convert from 'heic-convert';
 import type { FastifyPluginAsync } from 'fastify';
 import {
@@ -55,7 +55,9 @@ export const learningRoutes =
       const { id } = idParams.parse(req.params);
       const learning = getLearning(id);
       const qns = db.select().from(questionnaires).where(eq(questionnaires.learningId, id)).orderBy(desc(questionnaires.id)).all();
-      const subs = qns.flatMap((q) => db.select().from(submissions).where(eq(submissions.questionnaireId, q.id)).all());
+      const subs = qns.length
+        ? db.select().from(submissions).where(inArray(submissions.questionnaireId, qns.map((q) => q.id))).all()
+        : [];
       return {
         ...learning,
         images: db.select().from(images).where(eq(images.learningId, id)).all().map(toImageDto),

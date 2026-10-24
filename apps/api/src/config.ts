@@ -5,6 +5,8 @@ const apiKey = process.env.ANTHROPIC_API_KEY;
 const logFile = process.env.LOG_FILE ?? 'logs/api.log';
 
 export const config = {
+  // Loopback by default: browsers reach the API through the Vite proxy (ADR 0010).
+  host: process.env.HOST ?? '127.0.0.1',
   port: Number(process.env.PORT ?? 3001),
   anthropicApiKey: apiKey,
   model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5',

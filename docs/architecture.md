@@ -18,7 +18,7 @@ C4Context
 
 - `packages/shared`: Zod schemas and inferred types; the API contract. Consumed as source by both apps.
 - `apps/api`: Fastify + better-sqlite3 + Drizzle. Routes in `src/routes/`, Claude calls in `src/claude/client.ts`, job logic in `src/services/questionnaires.ts`. `buildApp({db, claude, uploadsDir})` in `src/app.ts` takes its dependencies as arguments; `src/server.ts` wires real ones.
-- `apps/web`: React + Vite + TanStack Query. `src/api/client.ts` is the only code that calls the API. Unsubmitted answers are kept in browser `localStorage` (`features/questionnaires/draftAnswers.ts`), never sent to the server before submit. In dev, Vite listens on all interfaces and proxies `/api` to `:3001`.
+- `apps/web`: React + Vite + TanStack Query. `src/api/client.ts` is the only code that calls the API. Unsubmitted answers are kept in browser `localStorage` (`features/questionnaires/draftAnswers.ts`), never sent to the server before submit. In dev, Vite listens on all interfaces and proxies `/api` to the API on `:3001`, which itself listens on loopback only (ADR 0010).
 
 ## Async flow (questionnaire generation and answer review)
 
@@ -46,7 +46,7 @@ sequenceDiagram
   W->>A: GET /submissions/:id (polling)
 ```
 
-The handlers return 202 immediately and run the Claude call without awaiting it. Errors are caught in the service and stored on the row.
+The handlers return 202 immediately and run the Claude call without awaiting it. Errors are caught in the service and stored on the row. At startup `failInterruptedJobs` marks rows still in `generating`/`reviewing` as `failed` (ADR 0009), and `POST /submissions/:id/retry` re-runs the review of a failed submission.
 
 ## Data model
 
