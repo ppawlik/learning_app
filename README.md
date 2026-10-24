@@ -6,7 +6,8 @@ Stack: pnpm monorepo, React + Vite + TS (`apps/web`), Fastify + SQLite/Drizzle (
 
 ## Run
 ```
-./start.sh             # installs dependencies and creates .env on first run, then starts everything
+./app.sh             # installs dependencies and creates .env on first run, then starts everything (Ctrl+C stops it)
+./app.sh stop        # stop a running instance from another terminal (also: restart, status)
 ```
 Or manually:
 ```
