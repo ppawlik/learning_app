@@ -36,11 +36,72 @@ The handlers return 202 immediately and run the Claude call without awaiting it.
 
 ## Data model
 
-`learnings` 1-N `images`; `learnings` 1-N `questionnaires` 1-N `questions`; `questionnaires` 1-N `submissions` 1-N `answers` (each answer points to a question). All child rows cascade on delete. Statuses: questionnaire `generating|ready|failed`; submission `reviewing|reviewed|failed`; answer verdict `passed|failed|null` (null until reviewed).
+```mermaid
+erDiagram
+  questions ||--o{ questions : "subquestions"
+  learnings ||--o{ images : has
+  learnings ||--o{ questionnaires : has
+  questionnaires ||--o{ questions : has
+  questionnaires ||--o{ submissions : has
+  submissions ||--o{ answers : has
+  questions ||--o{ answers : "answered by"
+
+  learnings {
+    integer id PK
+    text title
+    text prompt
+    text created_at
+  }
+  images {
+    integer id PK
+    integer learning_id FK
+    text filename
+    text mime_type
+    text path
+    text created_at
+  }
+  questionnaires {
+    integer id PK
+    integer learning_id FK
+    text status "generating | ready | failed"
+    text error "nullable"
+    text created_at
+  }
+  questions {
+    integer id PK
+    integer questionnaire_id FK
+    integer parent_id FK "nullable, set on subquestions"
+    integer position "among siblings"
+    text text
+    text type "open | multiple_choice"
+    json options "nullable, string[]"
+    text expected_answer
+  }
+  submissions {
+    integer id PK
+    integer questionnaire_id FK
+    text status "reviewing | reviewed | failed"
+    text error "nullable"
+    integer success_rate "nullable"
+    text summary "nullable"
+    text created_at
+  }
+  answers {
+    integer id PK
+    integer submission_id FK
+    integer question_id FK
+    text answer
+    text verdict "passed | failed, nullable"
+    text feedback "nullable"
+  }
+```
+
+`learnings` 1-N `images`; `learnings` 1-N `questionnaires` 1-N `questions`; `questionnaires` 1-N `submissions` 1-N `answers` (each answer points to a question). Questions form a two-level hierarchy through `questions.parent_id`: a task with subquestions is a statement row (empty `expected_answer`, never answered or reviewed) and its subquestions are the answerable rows; a plain task has no children and is answerable itself. `position` is the index among siblings. Answers exist only for answerable rows. All child rows cascade on delete. Statuses: questionnaire `generating|ready|failed`; submission `reviewing|reviewed|failed`; answer verdict `passed|failed|null` (null until reviewed).
 
 ## Invariants
 
 - `questions.expected_answer` never leaves the server. `GET /questionnaires/:id` selects fields explicitly and a test asserts it.
+- Only answerable questions (no children) get answers, are sent to Claude for review and count in `successRate`. `GET /questionnaires/:id` returns tasks with nested `subquestions`; numbering (1, 2) and lettering (a, b) are derived from `position`.
 - `successRate` is computed by `computeSuccessRate` from the verdicts, not taken from Claude. Questions missing from Claude's review count as failed.
 - The table definitions exist twice: Drizzle in `apps/api/src/db/schema.ts` and the raw DDL in `apps/api/src/db/index.ts`. Change both.
 - Images live on disk under `uploads/<learningId>/`; the DB stores the path. HEIC/HEIF uploads are converted to JPEG with `heic-convert` (pure JS) in the upload route, so only JPEG, PNG, GIF and WebP are ever stored, served or sent to Claude.

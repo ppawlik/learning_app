@@ -34,29 +34,55 @@ export type LearningImage = z.infer<typeof imageSchema>;
 
 export const questionTypeSchema = z.enum(['open', 'multiple_choice']);
 
-/** Shape Claude must produce when generating a questionnaire. */
+/** Letter label of the subquestion at a 0-based index: 0 -> "a", 1 -> "b", ... */
+export const subquestionLabel = (index: number): string => String.fromCharCode(97 + index);
+
+const generatedLeafSchema = z.object({
+  text: z.string().min(1),
+  type: questionTypeSchema,
+  options: z.array(z.string()).optional(),
+  expectedAnswer: z.string().min(1),
+});
+
+/**
+ * Shape Claude must produce when generating a questionnaire. A task is either a plain question
+ * (type + expectedAnswer) or a statement with subquestions (each answered separately).
+ */
 export const generatedQuestionnaireSchema = z.object({
   questions: z
     .array(
-      z.object({
-        text: z.string().min(1),
-        type: questionTypeSchema,
-        options: z.array(z.string()).optional(),
-        expectedAnswer: z.string().min(1),
-      }),
+      z
+        .object({
+          text: z.string().min(1),
+          type: questionTypeSchema.optional(),
+          options: z.array(z.string()).optional(),
+          expectedAnswer: z.string().min(1).optional(),
+          subquestions: z.array(generatedLeafSchema).optional(),
+        })
+        .refine(
+          (q) => (q.subquestions?.length ? q.type === undefined : q.type !== undefined && q.expectedAnswer !== undefined),
+          { message: 'A task needs either type and expectedAnswer, or subquestions' },
+        ),
     )
     .min(1),
 });
 export type GeneratedQuestionnaire = z.infer<typeof generatedQuestionnaireSchema>;
 
 /** Question as exposed to the client (no expected answer). */
-export const questionSchema = z.object({
+export const subquestionSchema = z.object({
   id: z.number().int(),
   position: z.number().int(),
   text: z.string(),
   type: questionTypeSchema,
   options: z.array(z.string()).nullable(),
 });
+export type Subquestion = z.infer<typeof subquestionSchema>;
+
+/**
+ * Top-level task. With no subquestions it is answered itself; otherwise only its subquestions
+ * are answered and `text` is the shared statement (its type/options are then meaningless).
+ */
+export const questionSchema = subquestionSchema.extend({ subquestions: z.array(subquestionSchema) });
 export type Question = z.infer<typeof questionSchema>;
 
 export const questionnaireStatusSchema = z.enum(['generating', 'ready', 'failed']);
@@ -102,6 +128,12 @@ export const submissionSchema = z.object({
     z.object({
       questionId: z.number().int(),
       questionText: z.string(),
+      /** Statement of the task this answer's subquestion belongs to; null for a plain task. */
+      parentText: z.string().nullable(),
+      /** 1-based task number. */
+      taskNumber: z.number().int(),
+      /** Letter of the subquestion within its task; null for a plain task. */
+      subLabel: z.string().nullable(),
       answer: z.string(),
       verdict: z.enum(['passed', 'failed']).nullable(),
       feedback: z.string().nullable(),

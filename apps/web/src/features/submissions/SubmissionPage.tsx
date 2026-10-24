@@ -26,22 +26,29 @@ export function SubmissionPage() {
         <p className="text-sm text-slate-500">{passed} of {data.answers.length} answers passed</p>
         {data.summary && <p className="mt-3 whitespace-pre-wrap text-sm">{data.summary}</p>}
       </Card>
-      {data.answers.map((a, i) => (
-        <Card key={a.questionId}>
-          <div className="flex items-start justify-between gap-3">
-            <p className="font-medium">{i + 1}. {a.questionText}</p>
-            <span
-              className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
-                a.verdict === 'passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {a.verdict === 'passed' ? 'Passed' : 'Failed'}
-            </span>
-          </div>
-          <p className="mt-2 text-sm"><span className="text-slate-500">Your answer:</span> {a.answer || <em>(empty)</em>}</p>
-          <p className="mt-1 text-sm text-slate-700">{a.feedback}</p>
-        </Card>
-      ))}
+      {data.answers.map((a, i) => {
+        const first = data.answers[i - 1]?.taskNumber !== a.taskNumber;
+        return (
+          <Card key={a.questionId}>
+            {a.parentText && first && <p className="mb-3 font-medium">{a.taskNumber}. {a.parentText}</p>}
+            <div className={`flex items-start justify-between gap-3 ${a.parentText ? 'border-l-2 border-slate-200 pl-4' : ''}`}>
+              <p className="font-medium">
+                {a.subLabel ? `${a.subLabel}) ` : `${a.taskNumber}. `}
+                {a.questionText}
+              </p>
+              <span
+                className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
+                  a.verdict === 'passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}
+              >
+                {a.verdict === 'passed' ? 'Passed' : 'Failed'}
+              </span>
+            </div>
+            <p className="mt-2 text-sm"><span className="text-slate-500">Your answer:</span> {a.answer || <em>(empty)</em>}</p>
+            <p className="mt-1 text-sm text-slate-700">{a.feedback}</p>
+          </Card>
+        );
+      })}
     </div>
   );
 }

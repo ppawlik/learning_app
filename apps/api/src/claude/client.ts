@@ -17,7 +17,7 @@ export interface ImageInput {
 export interface ReviewInput {
   learningPrompt: string;
   images: ImageInput[];
-  items: { questionId: number; text: string; options: string[] | null; expectedAnswer: string; answer: string }[];
+  items: { questionId: number; context: string | null; text: string; options: string[] | null; expectedAnswer: string; answer: string }[];
 }
 
 /** Abstraction over Claude so routes can be tested without network calls. */
@@ -52,12 +52,32 @@ const questionnaireTool: Anthropic.Tool = {
         items: {
           type: 'object',
           properties: {
-            text: { type: 'string' },
-            type: { type: 'string', enum: ['open', 'multiple_choice'] },
+            text: {
+              type: 'string',
+              description: 'The question, or the shared statement of a task that has subquestions',
+            },
+            type: { type: 'string', enum: ['open', 'multiple_choice'], description: 'Omit when the task has subquestions' },
             options: { type: 'array', items: { type: 'string' }, description: 'Required for multiple_choice' },
-            expectedAnswer: { type: 'string', description: 'The correct answer (for multiple_choice, the exact correct option text)' },
+            expectedAnswer: {
+              type: 'string',
+              description: 'The correct answer (for multiple_choice, the exact correct option text). Omit when the task has subquestions',
+            },
+            subquestions: {
+              type: 'array',
+              description: 'One entry per lettered subtask (a, b, c, ...), each answered separately',
+              items: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string', description: 'The subquestion only; the shared context stays in the parent text' },
+                  type: { type: 'string', enum: ['open', 'multiple_choice'] },
+                  options: { type: 'array', items: { type: 'string' }, description: 'Required for multiple_choice' },
+                  expectedAnswer: { type: 'string' },
+                },
+                required: ['text', 'type', 'expectedAnswer'],
+              },
+            },
           },
-          required: ['text', 'type', 'expectedAnswer'],
+          required: ['text'],
         },
       },
     },
@@ -137,8 +157,8 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
             `Follow the instructions above (including how many questions to create, if stated; otherwise create 5-10). ` +
             `Base every question on the image content. Provide the expected answer for each question. ` +
             `Do not prefix question text with numbering or labels such as "Zadanie 1", "Task 1" or "1."; the app numbers questions itself. ` +
-            `When a task has subtasks identified by letters (a, b, c, ...), create a separate question for every subtask instead of one question for the whole task. ` +
-            `Make each of these questions self-contained: repeat any shared context from the task statement in each, and do not use the letter labels.`,
+            `When a task has subtasks identified by letters (a, b, c, ...), create ONE task whose text is the shared statement and put every subtask in its subquestions array, ` +
+            `without letter labels; do not set type or expectedAnswer on that task. Do not merge subtasks into one question.`,
         },
       ];
       return generatedQuestionnaireSchema.parse(await callTool(questionnaireTool, content));
@@ -147,6 +167,7 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
     async reviewAnswers({ learningPrompt, images, items }) {
       const payload = items.map((i) => ({
         questionId: i.questionId,
+        ...(i.context ? { taskStatement: i.context } : {}),
         question: i.text,
         options: i.options,
         expectedAnswer: i.expectedAnswer,

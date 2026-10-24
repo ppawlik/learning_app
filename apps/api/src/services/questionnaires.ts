@@ -20,22 +20,34 @@ export async function generateQuestionnaire(db: Db, claude: ClaudeService, quest
     const imgs = db.select().from(images).where(eq(images.learningId, q.learningId)).all();
     const result = await claude.generateQuestionnaire(learning.prompt, imgs);
     db.transaction((tx) => {
-      tx.insert(questions)
-        .values(
-          result.questions.map((item, i) => ({
-            questionnaireId,
-            position: i,
-            text: item.text,
-            type: item.type,
-            options: item.type === 'multiple_choice' ? (item.options ?? []) : null,
-            expectedAnswer: item.expectedAnswer,
-          })),
-        )
-        .run();
+      const leaf = (item: { text: string; type: 'open' | 'multiple_choice'; options?: string[]; expectedAnswer: string }) => ({
+        text: item.text,
+        type: item.type,
+        options: item.type === 'multiple_choice' ? (item.options ?? []) : null,
+        expectedAnswer: item.expectedAnswer,
+      });
+      result.questions.forEach((item, i) => {
+        if (item.subquestions?.length) {
+          // The parent is only a statement; it is never answered or reviewed.
+          const parent = tx
+            .insert(questions)
+            .values({ questionnaireId, position: i, text: item.text, type: 'open', options: null, expectedAnswer: '' })
+            .returning()
+            .get();
+          tx.insert(questions)
+            .values(item.subquestions.map((sq, j) => ({ questionnaireId, parentId: parent.id, position: j, ...leaf(sq) })))
+            .run();
+        } else {
+          // The refine in generatedQuestionnaireSchema guarantees type and expectedAnswer here.
+          tx.insert(questions)
+            .values({ questionnaireId, position: i, ...leaf({ ...item, type: item.type!, expectedAnswer: item.expectedAnswer! }) })
+            .run();
+        }
+      });
       tx.update(questionnaires).set({ status: 'ready' }).where(eq(questionnaires.id, questionnaireId)).run();
     });
     log.info(
-      { questionnaireId, questionCount: result.questions.length, durationMs: Date.now() - started },
+      { questionnaireId, taskCount: result.questions.length, durationMs: Date.now() - started },
       'questionnaire generated',
     );
   } catch (err) {
@@ -61,7 +73,11 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
     const qn = db.select().from(questionnaires).where(eq(questionnaires.id, sub.questionnaireId)).get()!;
     const learning = db.select().from(learnings).where(eq(learnings.id, qn.learningId)).get()!;
     const imgs = db.select().from(images).where(eq(images.learningId, qn.learningId)).all();
-    const qs = db.select().from(questions).where(eq(questions.questionnaireId, qn.id)).all();
+    const all = db.select().from(questions).where(eq(questions.questionnaireId, qn.id)).all();
+    const parentText = new Map(all.map((q) => [q.id, q.text]));
+    // Only answerable questions (not task statements that have subquestions) are reviewed.
+    const parentIds = new Set(all.map((q) => q.parentId).filter((x): x is number => x !== null));
+    const qs = all.filter((q) => !parentIds.has(q.id));
     const given = db.select().from(answers).where(eq(answers.submissionId, submissionId)).all();
     const answerByQ = new Map(given.map((a) => [a.questionId, a]));
 
@@ -70,6 +86,7 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
       images: imgs,
       items: qs.map((q) => ({
         questionId: q.id,
+        context: q.parentId === null ? null : (parentText.get(q.parentId) ?? null),
         text: q.text,
         options: q.options,
         expectedAnswer: q.expectedAnswer,

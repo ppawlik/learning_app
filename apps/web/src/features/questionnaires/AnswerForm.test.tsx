@@ -13,8 +13,18 @@ const questionnaire = {
   error: null,
   createdAt: '',
   questions: [
-    { id: 11, position: 0, text: 'What is shown?', type: 'open' as const, options: null },
-    { id: 12, position: 1, text: 'Pick one', type: 'multiple_choice' as const, options: ['a', 'b'] },
+    { id: 11, position: 0, text: 'What is shown?', type: 'open' as const, options: null, subquestions: [] },
+    {
+      id: 12,
+      position: 1,
+      text: 'About the picture',
+      type: 'open' as const,
+      options: null,
+      subquestions: [
+        { id: 13, position: 0, text: 'Pick one', type: 'multiple_choice' as const, options: ['x', 'y'] },
+        { id: 14, position: 1, text: 'Why?', type: 'open' as const, options: null },
+      ],
+    },
   ],
 };
 
@@ -28,13 +38,16 @@ it('submits typed and selected answers', async () => {
     </QueryClientProvider>,
   );
   await userEvent.type(screen.getByLabelText('Answer 1'), 'a cat');
-  await userEvent.click(screen.getByLabelText('b'));
+  expect(screen.getByText('2. About the picture')).toBeInTheDocument();
+  await userEvent.click(screen.getByLabelText('y'));
+  await userEvent.type(screen.getByLabelText('Answer 2b'), 'because');
   await userEvent.click(screen.getByRole('button', { name: /submit answers/i }));
   await waitFor(() =>
     expect(spy).toHaveBeenCalledWith(7, {
       answers: [
         { questionId: 11, answer: 'a cat' },
-        { questionId: 12, answer: 'b' },
+        { questionId: 13, answer: 'y' },
+        { questionId: 14, answer: 'because' },
       ],
     }),
   );

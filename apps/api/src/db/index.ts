@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS questionnaires (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 CREATE TABLE IF NOT EXISTS questions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, questionnaire_id INTEGER NOT NULL REFERENCES questionnaires(id) ON DELETE CASCADE,
+  parent_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
   position INTEGER NOT NULL, text TEXT NOT NULL, type TEXT NOT NULL, options TEXT, expected_answer TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS submissions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, questionnaire_id INTEGER NOT NULL REFERENCES questionnaires(id) ON DELETE CASCADE,
@@ -32,6 +33,11 @@ export function createDb(path: string) {
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
   sqlite.exec(DDL);
+  // No migrations: bring a database created before subquestions existed up to date.
+  const cols = sqlite.prepare('PRAGMA table_info(questions)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'parent_id')) {
+    sqlite.exec('ALTER TABLE questions ADD COLUMN parent_id INTEGER REFERENCES questions(id) ON DELETE CASCADE');
+  }
   return drizzle(sqlite, { schema });
 }
 

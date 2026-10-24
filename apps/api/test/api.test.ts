@@ -27,6 +27,13 @@ const fakeClaude: ClaudeService = {
       questions: [
         { text: 'Q1?', type: 'open', expectedAnswer: 'A1' },
         { text: 'Q2?', type: 'multiple_choice', options: ['x', 'y'], expectedAnswer: 'x' },
+        {
+          text: 'Task 3 statement',
+          subquestions: [
+            { text: 'First part?', type: 'open', expectedAnswer: 'B1' },
+            { text: 'Second part?', type: 'open', expectedAnswer: 'B2' },
+          ],
+        },
       ],
     };
   },
@@ -84,7 +91,8 @@ describe('api', () => {
 
     const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
     expect(qn.status).toBe('ready');
-    expect(qn.questions).toHaveLength(2);
+    expect(qn.questions).toHaveLength(3);
+    expect(qn.questions[2].subquestions.map((s: { text: string }) => s.text)).toEqual(['First part?', 'Second part?']);
     expect(JSON.stringify(qn)).not.toContain('expectedAnswer');
 
     const sub = await app.inject({
@@ -97,8 +105,19 @@ describe('api', () => {
 
     const result = (await app.inject({ method: 'GET', url: `/api/submissions/${sub.json().id}` })).json();
     expect(result.status).toBe('reviewed');
-    expect(result.successRate).toBe(50);
-    expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed']);
+    // Four answerable questions (the task statement is not reviewed): 1 passed, 3 failed.
+    expect(result.successRate).toBe(25);
+    expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed', 'failed', 'failed']);
+    expect(result.answers.map((a: { taskNumber: number; subLabel: string | null }) => `${a.taskNumber}${a.subLabel ?? ''}`)).toEqual(['1', '2', '3a', '3b']);
+    expect(result.answers[2].parentText).toBe('Task 3 statement');
+
+    const statement = qn.questions[2];
+    const bad = await app.inject({
+      method: 'POST',
+      url: `/api/questionnaires/${qn.id}/submissions`,
+      payload: { answers: [{ questionId: statement.id, answer: 'x' }] },
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('rejects non-image uploads', async () => {

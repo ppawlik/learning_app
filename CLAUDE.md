@@ -23,7 +23,8 @@ Project knowledge lives in `docs/`: [requirements](docs/requirements.md) (FR-n I
 
 **`apps/api`** (Fastify + better-sqlite3 + Drizzle):
 - `buildApp(deps)` in `src/app.ts` takes `{ db, claude, uploadsDir }`, so tests inject an in-memory db and a fake `ClaudeService`. `src/server.ts` is the only place that wires real dependencies. `ClaudeService` (the interface in `src/claude/client.ts`) is the seam for mocking Claude.
-- The database schema exists twice. `src/db/schema.ts` is the Drizzle table definitions, and the raw `DDL` string in `src/db/index.ts` creates the tables at startup. There are no migrations, so keep both in sync when changing columns.
+- The database schema exists twice. `src/db/schema.ts` is the Drizzle table definitions, and the raw `DDL` string in `src/db/index.ts` creates the tables at startup. There are no migrations, so keep both in sync when changing columns; a column added to an existing table also needs an `ALTER TABLE` check in `createDb`.
+- Questions are hierarchical: `questions.parent_id` links subquestions to their task. Rows that have children are statements only; just the others get answers and reviews.
 - Claude work is asynchronous. `POST .../questionnaires` and `POST .../submissions` insert a row with status `generating` or `reviewing`, return 202, and run `generateQuestionnaire` / `reviewSubmission` (`src/services/questionnaires.ts`) fire-and-forget. These write `ready`/`reviewed` or `failed` plus an error message. The web app polls with TanStack Query `refetchInterval`. Rows stuck in `generating` or `reviewing` after a server restart are not recovered.
 - `successRate` is computed server-side from the verdicts (`computeSuccessRate`), not taken from Claude. Questions missing from Claude's review count as failed.
 - `questions.expected_answer` must never be sent to the client. `GET /questionnaires/:id` omits it on purpose, and a test checks this.

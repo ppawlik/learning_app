@@ -1,7 +1,8 @@
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Questionnaire } from '@learning/shared';
+import { subquestionLabel, type Questionnaire, type Subquestion } from '@learning/shared';
+import type { UseFormRegister } from 'react-hook-form';
 import { api } from '../../api/client';
 import { Card, ErrorMessage, Spinner, buttonClass, inputClass } from '../../components/ui';
 
@@ -28,7 +29,10 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
   const submit = useMutation({
     mutationFn: (v: FormValues) =>
       api.submitAnswers(questionnaire.id, {
-        answers: questionnaire.questions.map((q) => ({ questionId: q.id, answer: v.answers?.[q.id] ?? '' })),
+        // Only answerable questions: plain tasks and subquestions, not task statements.
+        answers: questionnaire.questions
+          .flatMap((q) => (q.subquestions.length ? q.subquestions : [q]))
+          .map((q) => ({ questionId: q.id, answer: v.answers?.[q.id] ?? '' })),
       }),
     onSuccess: (s) => navigate(`/submissions/${s.id}`),
   });
@@ -38,26 +42,56 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
       <Link to={`/learnings/${questionnaire.learningId}`} className="text-sm text-indigo-600 hover:underline">
         ← Back to learning
       </Link>
-      {questionnaire.questions.map((q, i) => (
-        <Card key={q.id}>
-          <p className="mb-2 font-medium">{i + 1}. {q.text}</p>
-          {q.type === 'multiple_choice' && q.options ? (
-            <fieldset className="space-y-1">
-              {q.options.map((o) => (
-                <label key={o} className="flex items-center gap-2 text-sm">
-                  <input type="radio" value={o} {...register(`answers.${q.id}`)} /> {o}
-                </label>
-              ))}
-            </fieldset>
-          ) : (
-            <textarea aria-label={`Answer ${i + 1}`} rows={3} className={inputClass} {...register(`answers.${q.id}`)} />
-          )}
-        </Card>
-      ))}
+      {questionnaire.questions.map((q, i) => {
+        const number = String(i + 1);
+        return (
+          <Card key={q.id}>
+            <p className="mb-2 font-medium">{number}. {q.text}</p>
+            {q.subquestions.length ? (
+              <div className="space-y-4 border-l-2 border-slate-200 pl-4">
+                {q.subquestions.map((sq, j) => (
+                  <AnswerInput key={sq.id} q={sq} label={`${number}${subquestionLabel(j)}`} heading={`${subquestionLabel(j)})`} register={register} />
+                ))}
+              </div>
+            ) : (
+              <AnswerInput q={q} label={number} register={register} />
+            )}
+          </Card>
+        );
+      })}
       {submit.error && <ErrorMessage error={submit.error} />}
       <button className={buttonClass} disabled={submit.isPending}>
         {submit.isPending ? 'Submitting…' : 'Submit answers'}
       </button>
     </form>
+  );
+}
+
+function AnswerInput({
+  q,
+  label,
+  heading,
+  register,
+}: {
+  q: Subquestion;
+  label: string;
+  heading?: string;
+  register: UseFormRegister<FormValues>;
+}) {
+  return (
+    <div>
+      {heading && <p className="mb-2 text-sm font-medium">{heading} {q.text}</p>}
+      {q.type === 'multiple_choice' && q.options ? (
+        <fieldset className="space-y-1" aria-label={`Answer ${label}`}>
+          {q.options.map((o) => (
+            <label key={o} className="flex items-center gap-2 text-sm">
+              <input type="radio" value={o} {...register(`answers.${q.id}`)} /> {o}
+            </label>
+          ))}
+        </fieldset>
+      ) : (
+        <textarea aria-label={`Answer ${label}`} rows={3} className={inputClass} {...register(`answers.${q.id}`)} />
+      )}
+    </div>
   );
 }

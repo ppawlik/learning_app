@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, sqliteTable, text, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 
 const createdAt = () =>
   text('created_at')
@@ -33,6 +33,9 @@ export const questionnaires = sqliteTable('questionnaires', {
 export const questions = sqliteTable('questions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   questionnaireId: integer('questionnaire_id').notNull().references(() => questionnaires.id, { onDelete: 'cascade' }),
+  // Self-reference: set on subquestions. Parent rows are statements only and get no answers.
+  parentId: integer('parent_id').references((): AnySQLiteColumn => questions.id, { onDelete: 'cascade' }),
+  // Index among siblings (top-level tasks, or subquestions of one parent).
   position: integer('position').notNull(),
   text: text('text').notNull(),
   type: text('type', { enum: ['open', 'multiple_choice'] }).notNull(),
