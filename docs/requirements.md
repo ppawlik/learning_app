@@ -26,6 +26,7 @@ Single-user app; no authentication. Requirement IDs can be referenced from tests
 - Interrupted jobs are failed at startup, not resumed (ADR 0009); the user retries a review or generates a new questionnaire.
 - No schema migrations (tables are created at startup with `CREATE TABLE IF NOT EXISTS`); the one column added since, `questions.parent_id`, is added to older databases by an `ALTER TABLE` check in `createDb`.
 - Interim answers (FR-4) are per browser and device, not synced, and are not removed if the questionnaire is never submitted.
+- Visual baselines are Chromium on Linux only; another OS or font set shows small diffs (ADR 0011). No CI pipeline runs the tests yet.
 - No linter.
 - No retry for a failed questionnaire (the user generates a new one); a failed review can be retried.
 - Claude is called with all of a learning's images each time; there is no resizing or cost limit.

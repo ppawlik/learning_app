@@ -9,7 +9,7 @@ Conventions for changing this codebase. They follow from the architecture and AD
 - Keep changes small and focused. Do not mix refactors with behavior changes.
 - Commit only with the noreply author email (see `CLAUDE.md`, Git).
 - Draw diagrams in mermaid inside `docs/` (GitHub renders it; PlantUML code blocks are not rendered there).
-- Before calling a change done, run `pnpm typecheck` and `NODE_ENV=test pnpm test`.
+- Before calling a change done, run `pnpm typecheck`, `NODE_ENV=test pnpm test` and, for any change that touches the UI or the API flow, `pnpm e2e`.
 
 ## Contract and types
 
@@ -58,6 +58,9 @@ Conventions for changing this codebase. They follow from the architecture and AD
 - Web: test behavior through the rendered UI (Vitest), not implementation details.
 - Add a test for every bug fix that reproduces the bug first.
 - Tests must not call the real Anthropic API or need a key.
+- Pyramid: unit tests for pure logic and schemas (`packages/shared/test`, `draftAnswers`), component tests with Testing Library for UI states, API integration tests through `app.inject` with a fake `ClaudeService`, and Playwright (`e2e/`) for browser flows and visual regression (ADR 0011).
+- Visual baselines are PNGs in `e2e/tests/__screenshots__`. Mask volatile content (timestamps) instead of loosening the tolerance, review image diffs before running `pnpm e2e:update`, and never update baselines to make a failing run pass without understanding the change.
+- The e2e fake Claude (`apps/api/e2e/server.ts`) mirrors `ClaudeService`; extend it when the contract changes, and keep the `__e2e/reset` route out of the production server.
 
 ## Security and scope
 

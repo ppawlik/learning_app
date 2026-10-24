@@ -236,6 +236,42 @@ describe('review retry and restart recovery', () => {
   });
 });
 
+describe('reviewSubmission', () => {
+  it('counts questions missing from the review as failed', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-'));
+    const app = buildApp({
+      db: createDb(':memory:'),
+      claude: { ...fakeClaude, reviewAnswers: async ({ items }) => ({ answers: [{ questionId: items[0]!.questionId, verdict: 'passed', feedback: 'ok' }], summary: 's' }) },
+      uploadsDir: dir,
+    });
+    const { id } = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+    await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+    const gen = await app.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` });
+    await wait(50);
+    const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
+    const sub = await app.inject({ method: 'POST', url: `/api/questionnaires/${qn.id}/submissions`, payload: { answers: [{ questionId: qn.questions[0].id, answer: 'A1' }] } });
+    await wait(50);
+    const result = (await app.inject({ method: 'GET', url: `/api/submissions/${sub.json().id}` })).json();
+    expect(result.status).toBe('reviewed');
+    expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed', 'failed', 'failed']);
+    expect(result.answers[1].feedback).toBe('No review was returned for this answer.');
+    expect(result.successRate).toBe(25);
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('404s for unknown submissions, questionnaires and ids', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-'));
+    const app = buildApp({ db: createDb(':memory:'), claude: fakeClaude, uploadsDir: dir });
+    expect((await app.inject({ method: 'GET', url: '/api/submissions/1' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/api/questionnaires/1' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: '/api/questionnaires/1/submissions', payload: { answers: [{ questionId: 1, answer: 'x' }] } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/api/learnings/abc' })).statusCode).toBe(400);
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 describe('computeSuccessRate', () => {
   it('computes a percentage', () => {
     expect(computeSuccessRate(['passed', 'failed', 'passed'])).toBe(67);

@@ -6,6 +6,8 @@
     "dev": "pnpm -r --parallel --filter @learning/api --filter @learning/web dev",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "e2e": "pnpm --filter @learning/e2e e2e",
+    "e2e:update": "pnpm --filter @learning/e2e e2e:update",
     "build": "pnpm -r build"
   }
 }

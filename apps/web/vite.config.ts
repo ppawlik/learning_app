@@ -5,6 +5,6 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { host: true, port: 5173, proxy: { '/api': 'http://localhost:3001' } },
+  server: { host: true, port: 5173, proxy: { '/api': process.env.API_PROXY_TARGET ?? 'http://localhost:3001' } },
   test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'], globals: true },
 });
