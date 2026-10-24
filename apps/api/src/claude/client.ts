@@ -135,7 +135,8 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
             `You are creating a study questionnaire based on the attached images.\n` +
             `Instructions from the learner:\n"""\n${prompt}\n"""\n` +
             `Follow the instructions above (including how many questions to create, if stated; otherwise create 5-10). ` +
-            `Base every question on the image content. Provide the expected answer for each question.`,
+            `Base every question on the image content. Provide the expected answer for each question. ` +
+            `Do not prefix question text with numbering or labels such as "Zadanie 1", "Task 1" or "1."; the app numbers questions itself.`,
         },
       ];
       return generatedQuestionnaireSchema.parse(await callTool(questionnaireTool, content));
