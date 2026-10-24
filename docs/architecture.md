@@ -18,7 +18,7 @@ C4Context
 
 - `packages/shared`: Zod schemas and inferred types; the API contract. Consumed as source by both apps.
 - `apps/api`: Fastify + better-sqlite3 + Drizzle. Routes in `src/routes/`, Claude calls in `src/claude/client.ts`, job logic in `src/services/questionnaires.ts`. `buildApp({db, claude, uploadsDir})` in `src/app.ts` takes its dependencies as arguments; `src/server.ts` wires real ones.
-- `apps/web`: React + Vite + TanStack Query. `src/api/client.ts` is the only code that calls the API. In dev, Vite listens on all interfaces and proxies `/api` to `:3001`.
+- `apps/web`: React + Vite + TanStack Query. `src/api/client.ts` is the only code that calls the API. Unsubmitted answers are kept in browser `localStorage` (`features/questionnaires/draftAnswers.ts`), never sent to the server before submit. In dev, Vite listens on all interfaces and proxies `/api` to `:3001`.
 
 ## Async flow (questionnaire generation and answer review)
 

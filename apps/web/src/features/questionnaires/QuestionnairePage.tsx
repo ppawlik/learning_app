@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { subquestionLabel, type Questionnaire, type Subquestion } from '@learning/shared';
 import type { UseFormRegister } from 'react-hook-form';
 import { api } from '../../api/client';
+import { clearDraft, loadDraft, saveDraft } from './draftAnswers';
 import { Card, ErrorMessage, Spinner, buttonClass, inputClass } from '../../components/ui';
 
 type FormValues = { answers: Record<string, string> };
@@ -25,7 +26,9 @@ export function QuestionnairePage() {
 
 export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) {
   const navigate = useNavigate();
-  const { register, handleSubmit } = useForm<FormValues>();
+  const { register, handleSubmit, getValues } = useForm<FormValues>({
+    defaultValues: { answers: loadDraft(questionnaire.id) },
+  });
   const submit = useMutation({
     mutationFn: (v: FormValues) =>
       api.submitAnswers(questionnaire.id, {
@@ -34,11 +37,19 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
           .flatMap((q) => (q.subquestions.length ? q.subquestions : [q]))
           .map((q) => ({ questionId: q.id, answer: v.answers?.[q.id] ?? '' })),
       }),
-    onSuccess: (s) => navigate(`/submissions/${s.id}`),
+    onSuccess: (s) => {
+      clearDraft(questionnaire.id);
+      navigate(`/submissions/${s.id}`);
+    },
   });
 
   return (
-    <form onSubmit={handleSubmit((v) => submit.mutate(v))} className="space-y-4">
+    <form
+      onSubmit={handleSubmit((v) => submit.mutate(v))}
+      // blur bubbles in React, so this saves a draft whenever focus leaves any input
+      onBlur={() => saveDraft(questionnaire.id, getValues('answers'))}
+      className="space-y-4"
+    >
       <Link to={`/learnings/${questionnaire.learningId}`} className="text-sm text-indigo-600 hover:underline">
         ← Back to learning
       </Link>

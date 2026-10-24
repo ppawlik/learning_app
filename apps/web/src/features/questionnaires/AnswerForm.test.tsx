@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { AnswerForm } from './QuestionnairePage';
 import { api } from '../../api/client';
 
@@ -28,8 +28,9 @@ const questionnaire = {
   ],
 };
 
-it('submits typed and selected answers', async () => {
-  const spy = vi.spyOn(api, 'submitAnswers').mockResolvedValue({ id: 99 });
+const draftKey = 'learning-app:draft:questionnaire:7';
+
+const renderForm = () =>
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
@@ -37,6 +38,12 @@ it('submits typed and selected answers', async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+
+beforeEach(() => localStorage.clear());
+
+it('submits typed and selected answers', async () => {
+  const spy = vi.spyOn(api, 'submitAnswers').mockResolvedValue({ id: 99 });
+  renderForm();
   await userEvent.type(screen.getByLabelText('Answer 1'), 'a cat');
   expect(screen.getByText('2. About the picture')).toBeInTheDocument();
   await userEvent.click(screen.getByLabelText('y'));
@@ -51,4 +58,32 @@ it('submits typed and selected answers', async () => {
       ],
     }),
   );
+});
+
+it('keeps an answer when focus leaves the input and restores it later', async () => {
+  const first = renderForm();
+  await userEvent.type(screen.getByLabelText('Answer 1'), 'a cat');
+  expect(localStorage.getItem(draftKey)).toBeNull(); // still typing, nothing saved yet
+  await userEvent.click(screen.getByLabelText('y')); // moves focus out of the textarea
+  await userEvent.click(screen.getByLabelText('Answer 2b')); // and out of the radio
+  expect(JSON.parse(localStorage.getItem(draftKey)!)).toEqual({ '11': 'a cat', '13': 'y', '14': '' });
+  first.unmount();
+
+  renderForm();
+  expect(screen.getByLabelText('Answer 1')).toHaveValue('a cat');
+  expect(screen.getByLabelText('y')).toBeChecked();
+});
+
+it('clears the draft after a successful submit', async () => {
+  vi.spyOn(api, 'submitAnswers').mockResolvedValue({ id: 99 });
+  renderForm();
+  await userEvent.type(screen.getByLabelText('Answer 1'), 'a cat');
+  await userEvent.click(screen.getByRole('button', { name: /submit answers/i }));
+  await waitFor(() => expect(localStorage.getItem(draftKey)).toBeNull());
+});
+
+it('ignores a corrupt draft', () => {
+  localStorage.setItem(draftKey, '{not json');
+  renderForm();
+  expect(screen.getByLabelText('Answer 1')).toHaveValue('');
 });

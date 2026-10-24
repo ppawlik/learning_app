@@ -32,7 +32,7 @@ Project knowledge lives in `docs/`: [requirements](docs/requirements.md) (FR-n I
 
 **Claude API quirk:** this model rejects a forced `tool_choice` (`{type: 'tool'}`/`'any'`) with a 400 error. `callTool` in `src/claude/client.ts` therefore uses `tool_choice: auto`, adds a "respond only by calling the X tool" instruction, and validates the tool input with the shared Zod schema. The model comes from `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Generation behavior is steered by the prompt in `generateQuestionnaire` (no "Zadanie 1"/numbering prefixes in question text, because the UI numbers; lettered subtasks become `subquestions`); a prompt rule is not enforced in code, so check generated output after changing it.
 
-**`apps/web`** (React + Vite + Tailwind): the typed fetch wrapper in `src/api/client.ts` is the only code that talks to the API. Pages are in `src/features/{learnings,questionnaires,submissions}`.
+**`apps/web`** (React + Vite + Tailwind): the typed fetch wrapper in `src/api/client.ts` is the only code that talks to the API. Pages are in `src/features/{learnings,questionnaires,submissions}`. The answer form saves a draft to `localStorage` on blur (`draftAnswers.ts`) and clears it after submit.
 
 ## Git
 
