@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 pnpm workspace monorepo (`apps/api`, `apps/web`, `packages/shared`). Run from the repo root:
 
-- `pnpm dev`: starts the API (`:3001`, via `tsx watch`) and the Vite web app (`:5173`) together. Vite proxies `/api` to the API and listens on all interfaces (`host: true`), so the app is reachable on the LAN; from WSL2 that also needs mirrored networking or a Windows port proxy. Needs `ANTHROPIC_API_KEY` in a root `.env` (see `.env.example`).
+- `pnpm dev`: starts the API (`:3001`, via `tsx watch`) and the Vite web app (`:5173`) together. Vite proxies `/api` to the API and listens on all interfaces (`host: true`), so the app is reachable on the LAN; from WSL2 that also needs mirrored networking (`networkingMode=mirrored`, already set on the dev machine) plus an inbound Hyper-V firewall rule (`Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow`) and a Windows firewall rule for port 5173, otherwise LAN clients time out. Needs `ANTHROPIC_API_KEY` in a root `.env` (see `.env.example`).
 - `pnpm typecheck`: `tsc` in every package. There is no linter configured.
 - `pnpm test`: Vitest in api and web. Set `NODE_ENV=test` when running API tests so Fastify's logger stays quiet.
 - Single package or test: `pnpm --filter @learning/api test -- -t "full flow"`, or `pnpm --filter @learning/web test -- AnswerForm`.
@@ -30,7 +30,7 @@ Project knowledge lives in `docs/`: [requirements](docs/requirements.md) (FR-n I
 - `questions.expected_answer` must never be sent to the client. `GET /questionnaires/:id` omits it on purpose, and a test checks this.
 - Uploaded images are stored on disk under `uploads/<learningId>/`; the `images` table keeps the path. Claude receives them as base64 image blocks.
 
-**Claude API quirk:** this model rejects a forced `tool_choice` (`{type: 'tool'}`/`'any'`) with a 400 error. `callTool` in `src/claude/client.ts` therefore uses `tool_choice: auto`, adds a "respond only by calling the X tool" instruction, and validates the tool input with the shared Zod schema. The model comes from `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`).
+**Claude API quirk:** this model rejects a forced `tool_choice` (`{type: 'tool'}`/`'any'`) with a 400 error. `callTool` in `src/claude/client.ts` therefore uses `tool_choice: auto`, adds a "respond only by calling the X tool" instruction, and validates the tool input with the shared Zod schema. The model comes from `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Generation behavior is steered by the prompt in `generateQuestionnaire` (no "Zadanie 1"/numbering prefixes in question text, because the UI numbers; lettered subtasks become `subquestions`); a prompt rule is not enforced in code, so check generated output after changing it.
 
 **`apps/web`** (React + Vite + Tailwind): the typed fetch wrapper in `src/api/client.ts` is the only code that talks to the API. Pages are in `src/features/{learnings,questionnaires,submissions}`.
 

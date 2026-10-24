@@ -1,5 +1,19 @@
 # Architecture
 
+## System context
+
+```mermaid
+C4Context
+  title System context: Learning App
+
+  Person(learner, "Learner", "Creates learnings, uploads photos of study material, answers questionnaires")
+  System(app, "Learning App", "Generates questionnaires from images and reviews the learner's answers")
+  System_Ext(claude, "Anthropic Claude API", "Vision model that generates questions and reviews answers")
+
+  Rel(learner, app, "Uses", "HTTP, web browser")
+  Rel(app, claude, "Sends images, prompts and answers; receives questions and verdicts", "HTTPS, tool use")
+```
+
 ## Components
 
 - `packages/shared`: Zod schemas and inferred types; the API contract. Consumed as source by both apps.

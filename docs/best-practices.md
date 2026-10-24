@@ -8,6 +8,7 @@ Conventions for changing this codebase. They follow from the architecture and AD
 - Record a new design decision as a new ADR in `decisions/`. Never rewrite an accepted ADR; supersede it.
 - Keep changes small and focused. Do not mix refactors with behavior changes.
 - Commit only with the noreply author email (see `CLAUDE.md`, Git).
+- Draw diagrams in mermaid inside `docs/` (GitHub renders it; PlantUML code blocks are not rendered there).
 - Before calling a change done, run `pnpm typecheck` and `NODE_ENV=test pnpm test`.
 
 ## Contract and types
@@ -21,7 +22,7 @@ Conventions for changing this codebase. They follow from the architecture and AD
 
 - Take dependencies as arguments to `buildApp`; only `src/server.ts` wires real ones. Do not import a concrete Claude client or db inside routes or services.
 - Keep route handlers thin: parse, call a service, return. Put job and business logic in `src/services/`.
-- Keep `src/db/schema.ts` and the `DDL` string in `src/db/index.ts` in sync. There are no migrations, so say in the docs when a column change needs a fresh database.
+- Keep `src/db/schema.ts` and the `DDL` string in `src/db/index.ts` in sync. There are no migrations: for a column added to an existing table also add an `ALTER TABLE` check in `createDb` (with a test), otherwise existing dev databases break; for any other schema change say in the docs that it needs a fresh database.
 - Never send `questions.expected_answer` to the client. Add or keep a test whenever a new route returns questions.
 - Compute derived values (such as `successRate`) on the server from stored data, never trust them from Claude.
 - Fire-and-forget jobs must catch every error and write `failed` with a message. A job must never leave a row in `generating` or `reviewing` through a handled error.
@@ -33,6 +34,7 @@ Conventions for changing this codebase. They follow from the architecture and AD
 - Go through the `ClaudeService` interface so tests can inject a fake. Never call the Anthropic SDK from anywhere else.
 - Use the `callTool` pattern: `tool_choice: auto`, an explicit "respond only by calling the X tool" instruction, then Zod validation of the tool input (ADR 0004). Check `stop_reason`: a `max_tokens` stop truncates the tool call and must fail with a clear error, not a Zod message.
 - Treat Claude output as untrusted input: validate, handle a missing or malformed result as a failure, and handle questions missing from a review as failed.
+- Prompt rules (for example how questions are labelled or split into subquestions) are not guaranteed; keep the matching schema and UI tolerant, and add a server-side check if a rule must hold.
 - Read the model from `ANTHROPIC_MODEL`; do not hardcode a model id in feature code.
 
 ## Web (React, Vite, Tailwind)
