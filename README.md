@@ -6,6 +6,10 @@ Stack: pnpm monorepo, React + Vite + TS (`apps/web`), Fastify + SQLite/Drizzle (
 
 ## Run
 ```
+./start.sh             # installs dependencies and creates .env on first run, then starts everything
+```
+Or manually:
+```
 pnpm install
 cp .env.example .env   # set ANTHROPIC_API_KEY
 pnpm dev               # web: http://localhost:5173, api: http://localhost:3001

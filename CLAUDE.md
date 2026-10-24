@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 pnpm workspace monorepo (`apps/api`, `apps/web`, `packages/shared`). Run from the repo root:
 
+- `./start.sh`: one-command start from the repo root. Installs dependencies if `node_modules` is missing, creates `.env` from `.env.example` and stops if `ANTHROPIC_API_KEY` is missing or still the placeholder, then runs `pnpm dev`.
 - `pnpm dev`: starts the API (`:3001`, via `tsx watch`) and the Vite web app (`:5173`) together. Vite proxies `/api` to the API (which listens on `127.0.0.1` unless `HOST` is set, ADR 0010) and listens on all interfaces (`host: true`), so the app is reachable on the LAN; from WSL2 that also needs mirrored networking (`networkingMode=mirrored`, already set on the dev machine) plus an inbound Hyper-V firewall rule (`Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow`) and a Windows firewall rule for port 5173, otherwise LAN clients time out. Needs `ANTHROPIC_API_KEY` in a root `.env` (see `.env.example`).
 - `pnpm typecheck`: `tsc` in every package. There is no linter configured.
 - `pnpm test`: Vitest in shared, api and web (unit and API integration tests, no browser). Set `NODE_ENV=test` when running API tests so Fastify's logger stays quiet.
