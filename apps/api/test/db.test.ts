@@ -20,6 +20,6 @@ describe('createDb', () => {
     const cols = check.prepare('PRAGMA table_info(questions)').all() as { name: string }[];
     check.close();
     fs.rmSync(dir, { recursive: true, force: true });
-    expect(cols.map((c) => c.name)).toContain('parent_id');
+    expect(cols.map((c) => c.name)).toEqual(expect.arrayContaining(['parent_id', 'category']));
   });
 });

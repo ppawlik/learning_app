@@ -1,5 +1,6 @@
 import type {
   CreateLearningInput,
+  CreateQuestionnaireInput,
   Learning,
   LearningDetail,
   LearningImage,
@@ -37,8 +38,8 @@ export const api = {
   },
   deleteImage: (id: number) => request<void>(`/api/images/${id}`, { method: 'DELETE' }),
   imageUrl: (id: number) => `/api/images/${id}/file`,
-  generateQuestionnaire: (learningId: number) =>
-    request<{ id: number; status: string }>(`/api/learnings/${learningId}/questionnaires`, { method: 'POST' }),
+  generateQuestionnaire: (learningId: number, input: CreateQuestionnaireInput = {}) =>
+    request<{ id: number; status: string }>(`/api/learnings/${learningId}/questionnaires`, json('POST', input)),
   getQuestionnaire: (id: number) => request<Questionnaire>(`/api/questionnaires/${id}`),
   submitAnswers: (questionnaireId: number, input: SubmitAnswersInput) =>
     request<{ id: number }>(`/api/questionnaires/${questionnaireId}/submissions`, json('POST', input)),

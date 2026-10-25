@@ -13,16 +13,16 @@ const questionnaire = {
   error: null,
   createdAt: '',
   questions: [
-    { id: 11, position: 0, text: 'What is shown?', type: 'open' as const, options: null, subquestions: [] },
+    { id: 11, position: 0, category: null, text: 'What is shown?', type: 'open' as const, options: null, subquestions: [] },
     {
       id: 12,
-      position: 1,
+      position: 1, category: null,
       text: 'About the picture',
       type: 'open' as const,
       options: null,
       subquestions: [
-        { id: 13, position: 0, text: 'Pick one', type: 'multiple_choice' as const, options: ['x', 'y'] },
-        { id: 14, position: 1, text: 'Why?', type: 'open' as const, options: null },
+        { id: 13, position: 0, category: null, text: 'Pick one', type: 'multiple_choice' as const, options: ['x', 'y'] },
+        { id: 14, position: 1, category: null, text: 'Why?', type: 'open' as const, options: null },
       ],
     },
   ],

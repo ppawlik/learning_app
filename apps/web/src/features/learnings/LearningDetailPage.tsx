@@ -7,10 +7,13 @@ import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGES_PER_LEARNING,
   MAX_IMAGE_BYTES,
+  MAX_QUESTION_COUNT,
+  DEFAULT_QUESTION_COUNT,
   UPLOAD_IMAGE_ACCEPT,
   createLearningSchema,
   isHeicFile,
   type CreateLearningInput,
+  type CreateQuestionnaireInput,
   type LearningDetail,
 } from '@learning/shared';
 import { api } from '../../api/client';
@@ -68,7 +71,7 @@ export function LearningDetailPage() {
     onSettled: refresh,
   });
   const removeImage = useMutation({ mutationFn: api.deleteImage, onSuccess: refresh });
-  const generate = useMutation({ mutationFn: () => api.generateQuestionnaire(id), onSuccess: refresh });
+  const generate = useMutation({ mutationFn: (input: CreateQuestionnaireInput) => api.generateQuestionnaire(id, input), onSuccess: refresh });
   const retryGeneration = useMutation({ mutationFn: api.retryQuestionnaire, onSuccess: refresh });
   const retryReview = useMutation({ mutationFn: api.retryReview, onSuccess: refresh });
   const removeSet = useMutation({ mutationFn: api.deleteQuestionnaire, onSuccess: refresh });
@@ -172,14 +175,12 @@ export function LearningDetailPage() {
       <Card>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="font-semibold">Zestawy pytań</h2>
-          <button
-            className={buttonClass}
-            disabled={data.images.length === 0 || generate.isPending}
-            onClick={() => generate.mutate()}
-          >
-            Wygeneruj zestaw pytań
-          </button>
         </div>
+        <GenerateOptions
+          detail={data}
+          disabled={data.images.length === 0 || generate.isPending}
+          onGenerate={(input) => generate.mutate(input)}
+        />
         {data.images.length === 0 && <p className="text-sm text-slate-500">Prześlij co najmniej jeden obraz, aby wygenerować zestaw pytań.</p>}
         <ul className="space-y-2">
           {data.questionnaires.map((q) => (
@@ -195,6 +196,67 @@ export function LearningDetailPage() {
           ))}
         </ul>
       </Card>
+    </div>
+  );
+}
+
+function GenerateOptions({
+  detail,
+  disabled,
+  onGenerate,
+}: {
+  detail: LearningDetail;
+  disabled: boolean;
+  onGenerate: (input: CreateQuestionnaireInput) => void;
+}) {
+  // null: follow the default (categories failed in the last attempt) until the user changes the selection.
+  const [chosen, setChosen] = useState<string[] | null>(null);
+  const [count, setCount] = useState(String(DEFAULT_QUESTION_COUNT));
+  const selected = chosen ?? detail.defaultCategories;
+  const n = Number(count);
+  const countValid = Number.isInteger(n) && n >= 1 && n <= MAX_QUESTION_COUNT;
+  const toggle = (c: string) => setChosen(selected.includes(c) ? selected.filter((x) => x !== c) : [...selected, c]);
+  const noneSelected = detail.categories.length > 0 && selected.length === 0;
+
+  return (
+    <div className="mb-4 space-y-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+      {detail.categories.length > 0 && (
+        <fieldset>
+          <legend className="mb-1 font-medium">Kategorie</legend>
+          <p className="mb-1 text-xs text-slate-500">Domyślnie zaznaczone są kategorie błędne w ostatnim podejściu.</p>
+          <div className="flex flex-wrap gap-x-4">
+            {detail.categories.map((c) => (
+              <label key={c} className="flex min-h-10 items-center gap-2">
+                <input type="checkbox" checked={selected.includes(c)} onChange={() => toggle(c)} />
+                {c}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <label htmlFor="question-count" className="mb-1 block font-medium">Liczba pytań</label>
+          <input
+            id="question-count"
+            type="number"
+            min={1}
+            max={MAX_QUESTION_COUNT}
+            className={`${inputClass} w-24`}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+          />
+        </div>
+        <button
+          className={buttonClass}
+          disabled={disabled || !countValid || noneSelected}
+          onClick={() => onGenerate({ categories: selected, questionCount: n })}
+        >
+          Wygeneruj zestaw pytań
+        </button>
+      </div>
+      {!countValid && <p className="text-xs text-red-600">Podaj liczbę pytań od 1 do {MAX_QUESTION_COUNT}.</p>}
+      {noneSelected && <p className="text-xs text-red-600">Zaznacz co najmniej jedną kategorię.</p>}
     </div>
   );
 }
@@ -221,6 +283,9 @@ function SetRow({
       <div className="flex items-center justify-between gap-3">
         <span className="font-medium">
           Zestaw {setNumber(detail, q.id)} <span className="font-normal text-slate-500">· {datetime(q.createdAt)}</span>
+          {q.requestedCategories.length > 0 && (
+            <span className="block text-xs font-normal text-slate-500">Kategorie: {q.requestedCategories.join(', ')}</span>
+          )}
         </span>
         <span className="flex items-center gap-3">
           {q.status === 'generating' && <span className="text-slate-500">Generowanie…</span>}

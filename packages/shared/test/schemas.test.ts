@@ -39,17 +39,18 @@ describe('generatedQuestionnaireSchema', () => {
 
   it('accepts plain questions and questions with subquestions', () => {
     const ok = generatedQuestionnaireSchema.safeParse({
-      questions: [leaf, { text: 'Statement', subquestions: [leaf, { ...leaf, type: 'multiple_choice', options: ['x'] }] }],
+      questions: [{ ...leaf, category: 'A' }, { category: 'A', text: 'Statement', subquestions: [leaf, { ...leaf, type: 'multiple_choice', options: ['x'] }] }],
     });
     expect(ok.success).toBe(true);
   });
 
   it.each([
     ['no questions', { questions: [] }],
-    ['plain question without expectedAnswer', { questions: [{ text: 'Q?', type: 'open' }] }],
-    ['question with neither type nor subquestions', { questions: [{ text: 'Q?' }] }],
-    ['question with subquestions and its own type', { questions: [{ text: 'S', type: 'open', subquestions: [leaf] }] }],
-    ['subquestion without expectedAnswer', { questions: [{ text: 'S', subquestions: [{ text: 'a', type: 'open' }] }] }],
+    ['plain question without expectedAnswer', { questions: [{ category: 'A', text: 'Q?', type: 'open' }] }],
+    ['question with neither type nor subquestions', { questions: [{ category: 'A', text: 'Q?' }] }],
+    ['question without category', { questions: [{ ...leaf }] }],
+    ['question with subquestions and its own type', { questions: [{ category: 'A', text: 'S', type: 'open', subquestions: [leaf] }] }],
+    ['subquestion without expectedAnswer', { questions: [{ category: 'A', text: 'S', subquestions: [{ text: 'a', type: 'open' }] }] }],
   ])('rejects %s', (_name, input) => {
     expect(generatedQuestionnaireSchema.safeParse(input).success).toBe(false);
   });

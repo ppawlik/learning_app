@@ -14,6 +14,7 @@ const answer = (over: object) => ({
   questionText: 'Q',
   parentText: null,
   questionNumber: 1,
+  category: null,
   subLabel: null,
   answer: 'mine',
   verdict: 'passed' as const,
@@ -33,9 +34,9 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
-const submission = { id: 9, questionnaireId: 1, learningId: 4, error: null, createdAt: '' };
+const submission = { id: 9, questionnaireId: 1, learningId: 4, error: null, createdAt: '', categoryStats: [] };
 
-const topic = { id: 4, title: 'Biologia', prompt: 'P', createdAt: '', images: [], questionnaires: [{ id: 1, status: 'ready' as const, error: null, createdAt: '' }], submissions: [{ id: 9, questionnaireId: 1, status: 'reviewed' as const, error: null, successRate: 67, createdAt: '' }] };
+const topic = { id: 4, title: 'Biologia', prompt: 'P', createdAt: '', images: [], categories: [], defaultCategories: [], questionnaires: [{ id: 1, status: 'ready' as const, error: null, createdAt: '', requestedCategories: [], questionCount: null }], submissions: [{ id: 9, questionnaireId: 1, status: 'reviewed' as const, error: null, successRate: 67, createdAt: '' }] };
 
 beforeEach(() => {
   vi.spyOn(api, 'getLearning').mockResolvedValue(topic);
@@ -114,4 +115,22 @@ it('shows a spinner while the review runs', async () => {
   });
   renderPage();
   expect(await screen.findByText(/claude ocenia/i)).toBeInTheDocument();
+});
+
+it('shows results per category', async () => {
+  vi.spyOn(api, 'getSubmission').mockResolvedValue({
+    ...submission,
+    status: 'reviewed',
+    successRate: 50,
+    summary: null,
+    categoryStats: [
+      { category: 'Alfa', passed: 1, total: 1, successRate: 100 },
+      { category: 'Beta', passed: 0, total: 1, successRate: 0 },
+    ],
+    answers: [answer({ category: 'Alfa' }), answer({ questionId: 2, label: '2', questionNumber: 2, category: 'Beta', verdict: 'failed', expectedAnswer: 'X' })],
+  });
+  renderPage();
+  const table = await screen.findByRole('table', { name: 'Wyniki według kategorii' });
+  expect(table).toHaveTextContent('Alfa1 z 1100%');
+  expect(table).toHaveTextContent('Beta0 z 10%');
 });

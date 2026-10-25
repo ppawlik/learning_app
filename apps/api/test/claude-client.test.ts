@@ -27,10 +27,10 @@ describe('createClaudeService', () => {
   it('generates a hierarchical questionnaire through the tool, with tool_choice auto', async () => {
     create.mockResolvedValue(
       toolUse({
-        questions: [{ text: 'Statement', subquestions: [{ text: 'a?', type: 'open', expectedAnswer: 'A' }] }],
+        questions: [{ category: 'Komórka', text: 'Statement', subquestions: [{ text: 'a?', type: 'open', expectedAnswer: 'A' }] }],
       }),
     );
-    const result = await createClaudeService(log, 'key').generateQuestionnaire('Ask about cells', []);
+    const result = await createClaudeService(log, 'key').generateQuestionnaire('Ask about cells', [], { categories: ['Komórka'], questionCount: 4 });
 
     expect(result.questions[0]?.subquestions).toHaveLength(1);
     const req = create.mock.calls[0]![0];
@@ -39,22 +39,24 @@ describe('createClaudeService', () => {
     const prompt = JSON.stringify(req.messages);
     expect(prompt).toContain('Ask about cells');
     expect(prompt).toContain('subquestions');
+    expect(prompt).toContain('exactly 4');
+    expect(prompt).toContain('Komórka');
     expect(prompt).toContain('Respond only by calling the submit_questionnaire tool');
   });
 
   it('fails clearly when the output is truncated', async () => {
     create.mockResolvedValue({ ...toolUse({ questions: [] }), stop_reason: 'max_tokens' });
-    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow('wyczerpał limit tokenów');
+    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [], { categories: [], questionCount: null })).rejects.toThrow('wyczerpał limit tokenów');
   });
 
   it('fails when Claude does not call the tool', async () => {
     create.mockResolvedValue({ stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'text', text: 'hi' }] });
-    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow('ustrukturyzowanej odpowiedzi');
+    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [], { categories: [], questionCount: null })).rejects.toThrow('ustrukturyzowanej odpowiedzi');
   });
 
   it('rejects tool input that does not match the shared schema', async () => {
-    create.mockResolvedValue(toolUse({ questions: [{ text: 'no type or answer' }] }));
-    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow();
+    create.mockResolvedValue(toolUse({ questions: [{ category: 'X', text: 'no type or answer' }] }));
+    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [], { categories: [], questionCount: null })).rejects.toThrow();
   });
 
   it('sends the question statement as context when reviewing a subquestion', async () => {

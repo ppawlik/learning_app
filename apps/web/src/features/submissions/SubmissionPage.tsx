@@ -67,6 +67,29 @@ export function SubmissionPage() {
         <p className="text-4xl font-bold">{data.successRate}%</p>
         <p className="text-sm text-slate-500">{passed} z {data.answers.length} odpowiedzi poprawnych</p>
         {data.summary && <Summary text={data.summary} />}
+        {data.categoryStats.length > 0 && (
+          <table className="mt-4 w-full border-t border-slate-200 text-sm">
+            <caption className="py-2 text-left font-medium">Wyniki według kategorii</caption>
+            <thead className="text-left text-xs text-slate-500">
+              <tr>
+                <th className="py-1 font-normal">Kategoria</th>
+                <th className="py-1 font-normal">Poprawne</th>
+                <th className="py-1 text-right font-normal">Wynik</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.categoryStats.map((c) => (
+                <tr key={c.category ?? ''} className="border-t border-slate-100">
+                  <td className="py-1">{c.category ?? 'Bez kategorii'}</td>
+                  <td className="py-1">{c.passed} z {c.total}</td>
+                  <td className={`py-1 text-right font-medium ${c.successRate === 100 ? 'text-green-700' : c.successRate < 50 ? 'text-red-700' : ''}`}>
+                    {c.successRate}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         {failed.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3 text-sm">
             <p>
@@ -90,6 +113,7 @@ export function SubmissionPage() {
         const first = visible[i - 1]?.questionNumber !== a.questionNumber;
         return (
           <Card key={a.questionId} id={`odp-${a.label}`}>
+            {a.category && first && <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{a.category}</p>}
             {a.parentText && first && <p className="mb-3 font-medium">{a.questionNumber}. {a.parentText}</p>}
             <div className={`flex items-start justify-between gap-3 ${a.parentText ? 'border-l-2 border-slate-200 pl-4' : ''}`}>
               <p className="font-medium">

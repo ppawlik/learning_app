@@ -4,7 +4,7 @@ import { questionLabel, subquestionLabel, submitAnswersSchema } from '@learning/
 import { schema } from '../db/index.js';
 import type { AppDeps } from '../app.js';
 import { HttpError, idParams } from './util.js';
-import { generateQuestionnaire, reviewSubmission } from '../services/questionnaires.js';
+import { computeCategoryStats, generateQuestionnaire, reviewSubmission } from '../services/questionnaires.js';
 
 const { questionnaires, questions, submissions, answers } = schema;
 
@@ -17,7 +17,7 @@ export const questionnaireRoutes =
       if (!q) throw new HttpError(404, 'Nie znaleziono zestawu pytań');
       const qs = db.select().from(questions).where(eq(questions.questionnaireId, id)).orderBy(asc(questions.position)).all();
       // expectedAnswer is intentionally omitted
-      const view = (x: (typeof qs)[number]) => ({ id: x.id, position: x.position, text: x.text, type: x.type, options: x.options });
+      const view = (x: (typeof qs)[number]) => ({ id: x.id, position: x.position, category: x.category, text: x.text, type: x.type, options: x.options });
       return {
         id: q.id,
         learningId: q.learningId,
@@ -124,6 +124,7 @@ export const questionnaireRoutes =
           questionText: q.text,
           parentText: parent?.text ?? null,
           questionNumber,
+          category: q.category,
           subLabel: parent ? subquestionLabel(q.position) : null,
           answer: a.answer,
           verdict: a.verdict,
@@ -134,6 +135,10 @@ export const questionnaireRoutes =
         };
       });
       entries.sort((x, y) => x.order[0]! - y.order[0]! || x.order[1]! - y.order[1]!);
-      return { ...s, learningId: qn.learningId, answers: entries.map(({ order, ...rest }) => rest) };
+      const categoryStats =
+        s.status === 'reviewed'
+          ? computeCategoryStats(entries.map((e) => ({ category: e.category, verdict: e.verdict ?? 'failed' })))
+          : [];
+      return { ...s, learningId: qn.learningId, categoryStats, answers: entries.map(({ order, ...rest }) => rest) };
     });
   };

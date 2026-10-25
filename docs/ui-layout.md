@@ -54,6 +54,7 @@ Notes:
 
 - "Edytuj" turns title and prompt into the create form in place; "Usuń" confirms inline.
 - Images: counter `(n z 20)`, miniatures open a preview dialog, the remove button is 40 px and confirms inline.
+- "Zestawy pytań" starts with the generation options: a checkbox per category used so far (preselected: those failed in the latest reviewed attempt) and "Liczba pytań" (1-30, default 10), then "Wygeneruj zestaw pytań". It is disabled when no category is ticked or the count is invalid. A set generated for chosen categories lists them ("Kategorie: …").
 - Sets are numbered per topic, newest first, each with date, status, "Otwórz", "Usuń" (not while generating). A failed set shows the reason and "Wygeneruj ponownie".
 - Submissions are listed under their set with date and result; a trend (`74% → 82%`) appears with two or more reviewed attempts. A failed review shows the reason and "Ponów ocenę".
 
@@ -74,6 +75,7 @@ Three states share the route: reviewing (waiting notice and back link), failed (
 ![Submission page layout](diagrams/page-submission.drawio.svg)
 
 - Top row: "← Wróć do tematu" and "Rozwiąż ponownie".
+- The result card has a table "Wyniki według kategorii" (category, passed z total, percent). Each answer card starts with its category as a small caption.
 - The summary renders paragraphs and `- ` bullet lists. Below it, a jump list of the failed labels and the filter "Tylko błędne".
 - Every card carries the full label (`3b)`, `4.` for a plain question), the same as in the summary; the statement of a question with subquestions is printed once, in its first card.
 - A failed answer shows the correct answer ("Poprawna odpowiedź: …", ADR 0012).

@@ -27,6 +27,9 @@ export const questionnaires = sqliteTable('questionnaires', {
   learningId: integer('learning_id').notNull().references(() => learnings.id, { onDelete: 'cascade' }),
   status: text('status', { enum: ['generating', 'ready', 'failed'] }).notNull(),
   error: text('error'),
+  // Generation options, kept so a retry or restart reuses them (ADR 0014). Null: Claude's choice.
+  requestedCategories: text('requested_categories', { mode: 'json' }).$type<string[] | null>(),
+  questionCount: integer('question_count'),
   createdAt: createdAt(),
 });
 
@@ -37,6 +40,8 @@ export const questions = sqliteTable('questions', {
   parentId: integer('parent_id').references((): AnySQLiteColumn => questions.id, { onDelete: 'cascade' }),
   // Index among siblings (top-level questions, or subquestions of one parent).
   position: integer('position').notNull(),
+  // Set on every row of a question tree (subquestions repeat their parent's); null for sets from before categories.
+  category: text('category'),
   text: text('text').notNull(),
   type: text('type', { enum: ['open', 'multiple_choice'] }).notNull(),
   options: text('options', { mode: 'json' }).$type<string[] | null>(),

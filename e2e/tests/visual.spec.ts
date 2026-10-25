@@ -39,7 +39,7 @@ test('review result with the hierarchy', async ({ app, page }) => {
   await app.generateQuestionnaire();
   await app.fillAnswers({ first: 'A cat', sky: 'Blue', a: 'Alpha', b: 'Gamma' });
   await page.getByRole('button', { name: 'Wyślij odpowiedzi' }).click();
-  await expect(page.getByText('Wynik')).toBeVisible();
+  await expect(page.getByText('Wynik', { exact: true }).first()).toBeVisible();
   await expect(page).toHaveScreenshot('review-result.png', { fullPage: true });
 });
 
@@ -77,7 +77,7 @@ test.describe('mobile', () => {
     await app.generateQuestionnaire();
     await app.fillAnswers({ first: 'A cat', sky: 'Blue', a: 'Alpha', b: 'Gamma' });
     await page.getByRole('button', { name: 'Wyślij odpowiedzi' }).click();
-    await expect(page.getByText('Wynik')).toBeVisible();
+    await expect(page.getByText('Wynik', { exact: true }).first()).toBeVisible();
     await expect(page).toHaveScreenshot('review-mobile.png', { fullPage: true });
   });
 });

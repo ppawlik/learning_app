@@ -15,6 +15,7 @@ const failed = {
   successRate: null,
   summary: null,
   createdAt: '',
+  categoryStats: [],
   answers: [],
 };
 

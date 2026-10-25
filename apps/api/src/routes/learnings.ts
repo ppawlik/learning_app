@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { eq, count, desc, inArray } from 'drizzle-orm';
+import { and, eq, count, desc, inArray } from 'drizzle-orm';
 import convert from 'heic-convert';
 import type { FastifyPluginAsync } from 'fastify';
 import {
@@ -10,13 +10,14 @@ import {
   MAX_IMAGE_BYTES,
   isHeicFile,
   createLearningSchema,
+  createQuestionnaireSchema,
 } from '@learning/shared';
 import { schema } from '../db/index.js';
 import type { AppDeps } from '../app.js';
 import { HttpError, idParams } from './util.js';
 import { generateQuestionnaire } from '../services/questionnaires.js';
 
-const { learnings, images, questionnaires, submissions } = schema;
+const { learnings, images, questionnaires, questions, submissions, answers } = schema;
 
 const EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -78,10 +79,40 @@ export const learningRoutes =
       const subs = qns.length
         ? db.select().from(submissions).where(inArray(submissions.questionnaireId, qns.map((q) => q.id))).all()
         : [];
+      // Categories seen in this topic's sets, and those failed in the newest reviewed submission.
+      const cats = qns.length
+        ? db
+            .selectDistinct({ category: questions.category })
+            .from(questions)
+            .where(inArray(questions.questionnaireId, qns.map((q) => q.id)))
+            .all()
+            .map((r) => r.category)
+            .filter((c): c is string => c !== null)
+        : [];
+      const lastReviewed = subs.filter((s) => s.status === 'reviewed').sort((a, b) => b.id - a.id)[0];
+      const failed = lastReviewed
+        ? db
+            .select({ category: questions.category })
+            .from(answers)
+            .innerJoin(questions, eq(answers.questionId, questions.id))
+            .where(and(eq(answers.submissionId, lastReviewed.id), eq(answers.verdict, 'failed')))
+            .all()
+            .map((r) => r.category)
+        : [];
+      const failedCats = cats.filter((c) => failed.includes(c));
       return {
         ...learning,
+        categories: cats,
+        defaultCategories: failedCats.length ? failedCats : cats,
         images: db.select().from(images).where(eq(images.learningId, id)).all().map(toImageDto),
-        questionnaires: qns.map((q) => ({ id: q.id, status: q.status, error: q.error, createdAt: q.createdAt })),
+        questionnaires: qns.map((q) => ({
+          id: q.id,
+          status: q.status,
+          error: q.error,
+          createdAt: q.createdAt,
+          requestedCategories: q.requestedCategories ?? [],
+          questionCount: q.questionCount,
+        })),
         submissions: subs
           .sort((a, b) => b.id - a.id)
           .map((s) => ({ id: s.id, questionnaireId: s.questionnaireId, status: s.status, error: s.error, successRate: s.successRate, createdAt: s.createdAt })),
@@ -163,8 +194,18 @@ export const learningRoutes =
       getLearning(id);
       const n = db.select({ n: count() }).from(images).where(eq(images.learningId, id)).get()!.n;
       if (n === 0) throw new HttpError(400, 'Najpierw prześlij co najmniej jeden obraz');
-      const q = db.insert(questionnaires).values({ learningId: id, status: 'generating' }).returning().get();
-      req.log.info({ questionnaireId: q.id, learningId: id, imageCount: n }, 'questionnaire requested');
+      const options = createQuestionnaireSchema.parse(req.body ?? {});
+      const q = db
+        .insert(questionnaires)
+        .values({
+          learningId: id,
+          status: 'generating',
+          requestedCategories: options.categories?.length ? options.categories : null,
+          questionCount: options.questionCount ?? null,
+        })
+        .returning()
+        .get();
+      req.log.info({ questionnaireId: q.id, learningId: id, imageCount: n, ...options }, 'questionnaire requested');
       void generateQuestionnaire(db, claude, q.id, req.log);
       return reply.status(202).send({ id: q.id, status: q.status });
     });

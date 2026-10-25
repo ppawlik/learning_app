@@ -79,6 +79,8 @@ erDiagram
     integer learning_id FK
     text status "generating | ready | failed"
     text error "nullable"
+    json requested_categories "nullable, string[]; null = Claude chooses"
+    integer question_count "nullable"
     text created_at
   }
   questions {
@@ -86,6 +88,7 @@ erDiagram
     integer questionnaire_id FK
     integer parent_id FK "nullable, set on subquestions"
     integer position "among siblings"
+    text category "nullable, repeated on subquestions"
     text text
     text type "open | multiple_choice"
     json options "nullable, string[]"
@@ -114,6 +117,7 @@ erDiagram
 
 ## Invariants
 
+- Categories (ADR 0014): `POST /learnings/:id/questionnaires` takes an optional `{categories, questionCount}` body that is stored on the questionnaire row; `generateQuestionnaire` and its retry read it from there. `GET /learnings/:id` returns `categories` (seen in the topic) and `defaultCategories` (failed in the newest reviewed submission). `categoryStats` of a submission is computed server-side (`computeCategoryStats`, reusing `computeSuccessRate`).
 - `questions.expected_answer` leaves the server only as `expectedAnswer` of a failed answer in `GET /submissions/:id` of a reviewed submission (ADR 0012). `GET /questionnaires/:id` selects fields explicitly and a test asserts it. `GET /submissions/:id` also returns `learningId` and a display `label` per answer (`questionLabel`).
 - Only answerable questions (no children) get answers, are sent to Claude for review and count in `successRate`. `GET /questionnaires/:id` returns questions with nested `subquestions`; numbering (1, 2) and lettering (a, b) are derived from `position`. The review prompt gives each question a display `label` (`questionLabel` in shared: `3`, `3b`) and tells Claude to cite only labels in feedback and summary, never `questionId`, so text matches the numbers on the page.
 - `successRate` is computed by `computeSuccessRate` from the verdicts, not taken from Claude. Questions missing from Claude's review count as failed.

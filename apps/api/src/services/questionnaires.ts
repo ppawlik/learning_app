@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { questionLabel } from '@learning/shared';
+import { questionLabel, type CategoryStat } from '@learning/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
@@ -36,9 +36,13 @@ export async function generateQuestionnaire(db: Db, claude: ClaudeService, quest
     if (!q) return;
     const learning = db.select().from(learnings).where(eq(learnings.id, q.learningId)).get()!;
     const imgs = db.select().from(images).where(eq(images.learningId, q.learningId)).all();
-    const result = await claude.generateQuestionnaire(learning.prompt, imgs);
+    const result = await claude.generateQuestionnaire(learning.prompt, imgs, {
+      categories: q.requestedCategories ?? [],
+      questionCount: q.questionCount,
+    });
     db.transaction((tx) => {
-      const leaf = (item: { text: string; type: 'open' | 'multiple_choice'; options?: string[]; expectedAnswer: string }) => ({
+      const leaf = (category: string, item: { text: string; type: 'open' | 'multiple_choice'; options?: string[]; expectedAnswer: string }) => ({
+        category,
         text: item.text,
         type: item.type,
         options: item.type === 'multiple_choice' ? (item.options ?? []) : null,
@@ -49,16 +53,16 @@ export async function generateQuestionnaire(db: Db, claude: ClaudeService, quest
           // The parent is only a statement; it is never answered or reviewed.
           const parent = tx
             .insert(questions)
-            .values({ questionnaireId, position: i, text: item.text, type: 'open', options: null, expectedAnswer: '' })
+            .values({ questionnaireId, position: i, category: item.category, text: item.text, type: 'open', options: null, expectedAnswer: '' })
             .returning()
             .get();
           tx.insert(questions)
-            .values(item.subquestions.map((sq, j) => ({ questionnaireId, parentId: parent.id, position: j, ...leaf(sq) })))
+            .values(item.subquestions.map((sq, j) => ({ questionnaireId, parentId: parent.id, position: j, ...leaf(item.category, sq) })))
             .run();
         } else {
           // The refine in generatedQuestionnaireSchema guarantees type and expectedAnswer here.
           tx.insert(questions)
-            .values({ questionnaireId, position: i, ...leaf({ ...item, type: item.type!, expectedAnswer: item.expectedAnswer! }) })
+            .values({ questionnaireId, position: i, ...leaf(item.category, { ...item, type: item.type!, expectedAnswer: item.expectedAnswer! }) })
             .run();
         }
       });
@@ -80,6 +84,18 @@ export async function generateQuestionnaire(db: Db, claude: ClaudeService, quest
 export function computeSuccessRate(verdicts: ('passed' | 'failed')[]) {
   if (verdicts.length === 0) return 0;
   return Math.round((verdicts.filter((v) => v === 'passed').length / verdicts.length) * 100);
+}
+
+/** Results per category, in order of first appearance. A null category groups questions from before categories existed. */
+export function computeCategoryStats(items: { category: string | null; verdict: 'passed' | 'failed' }[]): CategoryStat[] {
+  const groups = new Map<string | null, ('passed' | 'failed')[]>();
+  for (const i of items) groups.set(i.category, [...(groups.get(i.category) ?? []), i.verdict]);
+  return [...groups].map(([category, verdicts]) => ({
+    category,
+    passed: verdicts.filter((v) => v === 'passed').length,
+    total: verdicts.length,
+    successRate: computeSuccessRate(verdicts),
+  }));
 }
 
 export async function reviewSubmission(db: Db, claude: ClaudeService, submissionId: number, log: FastifyBaseLogger) {
@@ -110,6 +126,7 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
       images: imgs,
       items: qs.map((q) => ({
         questionId: q.id,
+        category: q.category,
         label: questionLabel(questionNumber.get(q.parentId ?? q.id)!, q.parentId === null ? null : q.position),
         context: q.parentId === null ? null : (parentText.get(q.parentId) ?? null),
         text: q.text,

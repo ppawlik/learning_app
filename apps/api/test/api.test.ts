@@ -25,9 +25,10 @@ const fakeClaude: ClaudeService = {
   async generateQuestionnaire() {
     return {
       questions: [
-        { text: 'Q1?', type: 'open', expectedAnswer: 'A1' },
-        { text: 'Q2?', type: 'multiple_choice', options: ['x', 'y'], expectedAnswer: 'x' },
+        { category: 'Alfa', text: 'Q1?', type: 'open', expectedAnswer: 'A1' },
+        { category: 'Beta', text: 'Q2?', type: 'multiple_choice', options: ['x', 'y'], expectedAnswer: 'x' },
         {
+          category: 'Beta',
           text: 'Question 3 statement',
           subquestions: [
             { text: 'First part?', type: 'open', expectedAnswer: 'B1' },
@@ -122,6 +123,68 @@ describe('api', () => {
       payload: { answers: [{ questionId: statement.id, answer: 'x' }] },
     });
     expect(bad.statusCode).toBe(400);
+  });
+
+  describe('categories', () => {
+    it('stores generation options, reuses them on retry, and reports per-category stats and defaults', async () => {
+      const calls: unknown[] = [];
+      let fail = true;
+      await app.close();
+      app = buildApp({
+        db: createDb(':memory:'),
+        uploadsDir: dir,
+        claude: {
+          ...fakeClaude,
+          generateQuestionnaire: async (p, i, options) => {
+            calls.push(options);
+            if (fail) throw new Error('boom');
+            return fakeClaude.generateQuestionnaire(p, i, options);
+          },
+        },
+      });
+      const id = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json().id as number;
+      await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+
+      const bad = await app.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires`, payload: { questionCount: 99 } });
+      expect(bad.statusCode).toBe(400);
+
+      const gen = await app.inject({
+        method: 'POST',
+        url: `/api/learnings/${id}/questionnaires`,
+        payload: { categories: ['Alfa', 'Beta'], questionCount: 4 },
+      });
+      await wait(50);
+      fail = false;
+      await app.inject({ method: 'POST', url: `/api/questionnaires/${gen.json().id}/retry` });
+      await wait(50);
+      expect(calls).toEqual([
+        { categories: ['Alfa', 'Beta'], questionCount: 4 },
+        { categories: ['Alfa', 'Beta'], questionCount: 4 },
+      ]);
+
+      let detail = (await app.inject({ method: 'GET', url: `/api/learnings/${id}` })).json();
+      expect(detail.questionnaires[0]).toMatchObject({ requestedCategories: ['Alfa', 'Beta'], questionCount: 4 });
+      expect(detail.categories.sort()).toEqual(['Alfa', 'Beta']);
+      // No reviewed submission yet: every category is preselected.
+      expect(detail.defaultCategories.sort()).toEqual(['Alfa', 'Beta']);
+
+      const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${gen.json().id}` })).json();
+      expect(qn.questions.map((q: { category: string }) => q.category)).toEqual(['Alfa', 'Beta', 'Beta']);
+      const sub = await app.inject({
+        method: 'POST',
+        url: `/api/questionnaires/${qn.id}/submissions`,
+        payload: { answers: [{ questionId: qn.questions[0].id, answer: 'A1' }] },
+      });
+      await wait(50);
+      const result = (await app.inject({ method: 'GET', url: `/api/submissions/${sub.json().id}` })).json();
+      expect(result.categoryStats).toEqual([
+        { category: 'Alfa', passed: 1, total: 1, successRate: 100 },
+        { category: 'Beta', passed: 0, total: 3, successRate: 0 },
+      ]);
+
+      detail = (await app.inject({ method: 'GET', url: `/api/learnings/${id}` })).json();
+      expect(detail.defaultCategories).toEqual(['Beta']);
+    });
   });
 
   describe('management', () => {

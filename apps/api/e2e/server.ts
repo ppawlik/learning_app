@@ -11,24 +11,25 @@ const failedGeneration = new Set<string>();
 
 const claude: ClaudeService = {
   // A learning prompt containing "boom" makes the first generation attempt throw, so the retry flow can be tested.
-  async generateQuestionnaire(prompt) {
+  async generateQuestionnaire(prompt, _images, { categories, questionCount }) {
     if (prompt.includes('boom') && !failedGeneration.has(prompt)) {
       failedGeneration.add(prompt);
       throw new Error('Simulated generation failure');
     }
-    return {
-      questions: [
-        { text: 'What object is shown in the picture?', type: 'open', expectedAnswer: 'A cat' },
-        { text: 'Which colour is the sky?', type: 'multiple_choice', options: ['Blue', 'Green', 'Red'], expectedAnswer: 'Blue' },
-        {
-          text: 'Study the diagram and answer the questions below.',
-          subquestions: [
-            { text: 'Name the first element.', type: 'open', expectedAnswer: 'Alpha' },
-            { text: 'Name the second element.', type: 'open', expectedAnswer: 'Beta' },
-          ],
-        },
-      ],
-    };
+    const all = [
+      { category: 'Rozpoznawanie', text: 'What object is shown in the picture?', type: 'open' as const, expectedAnswer: 'A cat' },
+      { category: 'Przyroda', text: 'Which colour is the sky?', type: 'multiple_choice' as const, options: ['Blue', 'Green', 'Red'], expectedAnswer: 'Blue' },
+      {
+        category: 'Diagramy',
+        text: 'Study the diagram and answer the questions below.',
+        subquestions: [
+          { text: 'Name the first element.', type: 'open' as const, expectedAnswer: 'Alpha' },
+          { text: 'Name the second element.', type: 'open' as const, expectedAnswer: 'Beta' },
+        ],
+      },
+    ];
+    const picked = categories.length ? all.filter((q) => categories.includes(q.category)) : all;
+    return { questions: picked.slice(0, questionCount ?? picked.length) };
   },
   // The first item passes, the rest fail. An answer containing "boom" makes the first review attempt throw,
   // so the retry flow can be tested.

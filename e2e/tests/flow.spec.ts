@@ -81,7 +81,7 @@ test('empty answers need a confirmation before the form is sent', async ({ app, 
   await page.getByRole('button', { name: 'Wróć do formularza' }).click();
   await page.getByRole('button', { name: 'Wyślij odpowiedzi' }).click();
   await page.getByRole('button', { name: 'Wyślij mimo to' }).click();
-  await expect(page.getByText('Wynik')).toBeVisible();
+  await expect(page.getByText('Wynik', { exact: true }).first()).toBeVisible();
 });
 
 test('a failed generation can be retried from the topic page and the questionnaire page', async ({ app, page }) => {
@@ -131,7 +131,7 @@ test('interim answers survive a reload and are cleared after submit', async ({ a
 
   await page.getByRole('button', { name: 'Wyślij odpowiedzi' }).click();
   await page.getByRole('button', { name: 'Wyślij mimo to' }).click(); // the first answer in 3a is still empty
-  await expect(page.getByText('Wynik')).toBeVisible();
+  await expect(page.getByText('Wynik', { exact: true }).first()).toBeVisible();
   await page.goBack();
   await expect(page.getByLabel('Odpowiedź 1', { exact: true })).toHaveValue('');
 });
@@ -145,7 +145,7 @@ test('a failed review can be retried', async ({ app, page }) => {
 
   await expect(page.getByRole('alert')).toContainText('Simulated review failure');
   await page.getByRole('button', { name: 'Ponów ocenę' }).click();
-  await expect(page.getByText('Wynik')).toBeVisible();
+  await expect(page.getByText('Wynik', { exact: true }).first()).toBeVisible();
 });
 
 test('rejects unsupported uploads in the browser', async ({ app, page }) => {
@@ -160,4 +160,30 @@ test('deleting a learning returns to the list', async ({ app, page }) => {
   await page.getByRole('button', { name: 'Tak' }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByText('Brak tematów.')).toBeVisible();
+});
+
+test('categories: stats per category, failed ones preselected, question count respected', async ({ app, page }) => {
+  await app.createLearning();
+  await app.uploadImage();
+  await app.generateQuestionnaire();
+  await app.fillAnswers({ first: 'A cat', sky: 'Blue', a: 'Alpha', b: 'Gamma' });
+  await page.getByRole('button', { name: 'Wyślij odpowiedzi' }).click();
+
+  // The fake review passes only the first question, so only "Rozpoznawanie" is fully correct.
+  const stats = page.getByRole('table', { name: 'Wyniki według kategorii' });
+  await expect(stats).toContainText('Rozpoznawanie1 z 1100%');
+  await expect(stats).toContainText('Przyroda0 z 10%');
+  await expect(stats).toContainText('Diagramy0 z 20%');
+
+  // Back on the topic page the failed categories are preselected and the count limits the next set.
+  await page.getByRole('navigation').getByRole('link', { name: 'Biology basics' }).click();
+  await expect(page.getByLabel('Rozpoznawanie')).not.toBeChecked();
+  await expect(page.getByLabel('Przyroda')).toBeChecked();
+  await expect(page.getByLabel('Diagramy')).toBeChecked();
+  await page.getByLabel('Liczba pytań').fill('1');
+  await page.getByRole('button', { name: 'Wygeneruj zestaw pytań' }).click();
+  await expect(page.getByText('Kategorie: Przyroda, Diagramy')).toBeVisible();
+  await page.getByRole('link', { name: 'Otwórz' }).first().click();
+  await expect(page.getByText('1. Which colour is the sky?')).toBeVisible();
+  await expect(page.getByText('2. Study the diagram')).toHaveCount(0);
 });

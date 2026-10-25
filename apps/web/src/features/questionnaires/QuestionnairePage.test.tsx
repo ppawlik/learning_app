@@ -57,16 +57,16 @@ it('numbers questions and letters subquestions, with an input for each answerabl
     ...base,
     status: 'ready',
     questions: [
-      { id: 1, position: 0, text: 'Plain', type: 'open', options: null, subquestions: [] },
+      { id: 1, position: 0, category: null, text: 'Plain', type: 'open', options: null, subquestions: [] },
       {
         id: 2,
-        position: 1,
+        position: 1, category: null,
         text: 'Statement',
         type: 'open',
         options: null,
         subquestions: [
-          { id: 3, position: 0, text: 'First', type: 'open', options: null },
-          { id: 4, position: 1, text: 'Second', type: 'open', options: null },
+          { id: 3, position: 0, category: null, text: 'First', type: 'open', options: null },
+          { id: 4, position: 1, category: null, text: 'Second', type: 'open', options: null },
         ],
       },
     ],

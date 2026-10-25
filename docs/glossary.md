@@ -11,5 +11,6 @@
 - **Set / attempt (Zestaw / Podejście)**: how users see a questionnaire and a submission: numbered per topic (Zestaw 1) and per set (Podejście 1) by creation order, never by database id.
 - **Submission**: one filling-in of a questionnaire; reviewed by Claude.
 - **Answer**: the learner's response to one answerable question (plain question or subquestion) within a submission, with a verdict and feedback after review.
+- **Category (Kategoria)**: short topic area of a question, assigned by Claude and shared by a question's subquestions. Users choose categories before generating a set; the review shows results per category.
 - **Verdict**: `passed` or `failed` per answer.
 - **Success rate**: percentage of passed answers in a submission (rounded).

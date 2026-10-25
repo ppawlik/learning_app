@@ -9,6 +9,13 @@ import {
 } from '@learning/shared';
 import { config } from '../config.js';
 
+export interface GenerateOptions {
+  /** Restrict the questions to these categories; empty: Claude chooses its own. */
+  categories: string[];
+  /** Total number of top-level questions; null: as the learner's instructions say, else 5-10. */
+  questionCount: number | null;
+}
+
 export interface ImageInput {
   path: string;
   mimeType: string;
@@ -17,12 +24,12 @@ export interface ImageInput {
 export interface ReviewInput {
   learningPrompt: string;
   images: ImageInput[];
-  items: { questionId: number; label: string; context: string | null; text: string; options: string[] | null; expectedAnswer: string; answer: string }[];
+  items: { questionId: number; label: string; category?: string | null; context: string | null; text: string; options: string[] | null; expectedAnswer: string; answer: string }[];
 }
 
 /** Abstraction over Claude so routes can be tested without network calls. */
 export interface ClaudeService {
-  generateQuestionnaire(prompt: string, images: ImageInput[]): Promise<GeneratedQuestionnaire>;
+  generateQuestionnaire(prompt: string, images: ImageInput[], options: GenerateOptions): Promise<GeneratedQuestionnaire>;
   reviewAnswers(input: ReviewInput): Promise<ReviewResult>;
 }
 
@@ -52,6 +59,10 @@ const questionnaireTool: Anthropic.Tool = {
         items: {
           type: 'object',
           properties: {
+            category: {
+              type: 'string',
+              description: 'Short category (topic area) of the question, in the language of the questions; subquestions share it',
+            },
             text: {
               type: 'string',
               description: 'The question, or the shared statement of a question that has subquestions',
@@ -77,7 +88,7 @@ const questionnaireTool: Anthropic.Tool = {
               },
             },
           },
-          required: ['text'],
+          required: ['category', 'text'],
         },
       },
     },
@@ -146,7 +157,7 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
   }
 
   return {
-    async generateQuestionnaire(prompt, images) {
+    async generateQuestionnaire(prompt, images, { categories, questionCount }) {
       const content: Anthropic.ContentBlockParam[] = [
         ...(await imageBlocks(images)),
         {
@@ -154,7 +165,12 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
           text:
             `You are creating a study questionnaire based on the attached images.\n` +
             `Instructions from the learner:\n"""\n${prompt}\n"""\n` +
-            `Follow the instructions above (including how many questions to create, if stated; otherwise create 5-10). ` +
+            (questionCount
+              ? `Create exactly ${questionCount} top-level questions (a question with subquestions counts as one). `
+              : `Follow the instructions above (including how many questions to create, if stated; otherwise create 5-10). `) +
+            (categories.length
+              ? `Assign every question one of exactly these categories, spreading the questions across them, and use no other category: ${JSON.stringify(categories)}. `
+              : `Group the questions into 3-6 short categories (topic areas) and give each question one. `) +
             `Base every question on the image content. Provide the expected answer for each question. ` +
             `Do not prefix question text with numbering or labels such as "Zadanie 1", "Task 1" or "1."; the app numbers questions itself. ` +
             `When a question has subquestions identified by letters (a, b, c, ...), create ONE question whose text is the shared statement and put every subquestion in its subquestions array, ` +
@@ -168,6 +184,7 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
       const payload = items.map((i) => ({
         questionId: i.questionId,
         label: i.label,
+        ...(i.category ? { category: i.category } : {}),
         ...(i.context ? { questionStatement: i.context } : {}),
         question: i.text,
         options: i.options,
@@ -184,6 +201,7 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
             `Questions, expected answers and learner answers (JSON):\n${JSON.stringify(payload, null, 2)}\n\n` +
             `Mark each answer "passed" if it is correct or substantially equivalent to the expected answer, otherwise "failed". ` +
             `Give specific feedback per answer, plus an overall summary. ` +
+            `Each question has a category; where it helps, mention which categories are weak or strong. ` +
             `Write the summary in the language of the questions, addressed directly to the learner, in this shape: ` +
             `(1) an opening sentence with the count of correct answers out of all (for example "24 z 34 odpowiedzi jest poprawnych"); ` +
             `(2) which questions were fully correct and what skills they show, listing labels and ranges such as 1a–1d; ` +

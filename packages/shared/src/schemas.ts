@@ -65,6 +65,8 @@ export const generatedQuestionnaireSchema = z.object({
     .array(
       z
         .object({
+          /** Short topic area the question belongs to; subquestions inherit it. */
+          category: z.string().trim().min(1).max(60),
           text: z.string().min(1),
           type: questionTypeSchema.optional(),
           options: z.array(z.string()).optional(),
@@ -84,6 +86,8 @@ export type GeneratedQuestionnaire = z.infer<typeof generatedQuestionnaireSchema
 export const subquestionSchema = z.object({
   id: z.number().int(),
   position: z.number().int(),
+  /** Null for questions generated before categories existed. */
+  category: z.string().nullable(),
   text: z.string(),
   type: questionTypeSchema,
   options: z.array(z.string()).nullable(),
@@ -96,6 +100,16 @@ export type Subquestion = z.infer<typeof subquestionSchema>;
  */
 export const questionSchema = subquestionSchema.extend({ subquestions: z.array(subquestionSchema) });
 export type Question = z.infer<typeof questionSchema>;
+
+export const MAX_QUESTION_COUNT = 30;
+export const DEFAULT_QUESTION_COUNT = 10;
+
+/** Optional options of a new questionnaire; without categories Claude picks them itself. */
+export const createQuestionnaireSchema = z.object({
+  categories: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
+  questionCount: z.number().int().min(1).max(MAX_QUESTION_COUNT).optional(),
+});
+export type CreateQuestionnaireInput = z.infer<typeof createQuestionnaireSchema>;
 
 export const questionnaireStatusSchema = z.enum(['generating', 'ready', 'failed']);
 export const questionnaireSchema = z.object({
@@ -128,6 +142,15 @@ export const reviewResultSchema = z.object({
 });
 export type ReviewResult = z.infer<typeof reviewResultSchema>;
 
+export const categoryStatSchema = z.object({
+  /** Null groups answers of questions without a category. */
+  category: z.string().nullable(),
+  passed: z.number().int(),
+  total: z.number().int(),
+  successRate: z.number(),
+});
+export type CategoryStat = z.infer<typeof categoryStatSchema>;
+
 export const submissionSchema = z.object({
   id: z.number().int(),
   questionnaireId: z.number().int(),
@@ -137,6 +160,8 @@ export const submissionSchema = z.object({
   successRate: z.number().nullable(),
   summary: z.string().nullable(),
   createdAt: z.string(),
+  /** Per-category results of a reviewed submission; empty otherwise. */
+  categoryStats: z.array(categoryStatSchema),
   answers: z.array(
     z.object({
       questionId: z.number().int(),
@@ -147,6 +172,7 @@ export const submissionSchema = z.object({
       parentText: z.string().nullable(),
       /** 1-based number of the top-level question. */
       questionNumber: z.number().int(),
+      category: z.string().nullable(),
       /** Letter of the subquestion within its parent question; null for a plain question. */
       subLabel: z.string().nullable(),
       answer: z.string(),
@@ -161,8 +187,20 @@ export type Submission = z.infer<typeof submissionSchema>;
 
 export const learningDetailSchema = learningSchema.extend({
   images: z.array(imageSchema),
+  /** Categories used in earlier sets of this topic. */
+  categories: z.array(z.string()),
+  /** Categories failed in the newest reviewed submission; all categories when none failed. */
+  defaultCategories: z.array(z.string()),
   questionnaires: z.array(
-    z.object({ id: z.number().int(), status: questionnaireStatusSchema, error: z.string().nullable(), createdAt: z.string() }),
+    z.object({
+      id: z.number().int(),
+      status: questionnaireStatusSchema,
+      error: z.string().nullable(),
+      createdAt: z.string(),
+      /** Categories the set was requested for (empty: chosen by Claude). */
+      requestedCategories: z.array(z.string()),
+      questionCount: z.number().int().nullable(),
+    }),
   ),
   submissions: z.array(
     z.object({

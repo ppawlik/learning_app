@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS images (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 CREATE TABLE IF NOT EXISTS questionnaires (
   id INTEGER PRIMARY KEY AUTOINCREMENT, learning_id INTEGER NOT NULL REFERENCES learnings(id) ON DELETE CASCADE,
-  status TEXT NOT NULL, error TEXT,
+  status TEXT NOT NULL, error TEXT, requested_categories TEXT, question_count INTEGER,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 CREATE TABLE IF NOT EXISTS questions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, questionnaire_id INTEGER NOT NULL REFERENCES questionnaires(id) ON DELETE CASCADE,
   parent_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
-  position INTEGER NOT NULL, text TEXT NOT NULL, type TEXT NOT NULL, options TEXT, expected_answer TEXT NOT NULL);
+  position INTEGER NOT NULL, category TEXT, text TEXT NOT NULL, type TEXT NOT NULL, options TEXT, expected_answer TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS submissions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, questionnaire_id INTEGER NOT NULL REFERENCES questionnaires(id) ON DELETE CASCADE,
   status TEXT NOT NULL, error TEXT, success_rate INTEGER, summary TEXT,
@@ -38,6 +38,12 @@ export function createDb(path: string) {
   if (!cols.some((c) => c.name === 'parent_id')) {
     sqlite.exec('ALTER TABLE questions ADD COLUMN parent_id INTEGER REFERENCES questions(id) ON DELETE CASCADE');
   }
+  if (!cols.some((c) => c.name === 'category')) sqlite.exec('ALTER TABLE questions ADD COLUMN category TEXT');
+  const qnCols = sqlite.prepare('PRAGMA table_info(questionnaires)').all() as { name: string }[];
+  if (!qnCols.some((c) => c.name === 'requested_categories')) {
+    sqlite.exec('ALTER TABLE questionnaires ADD COLUMN requested_categories TEXT');
+  }
+  if (!qnCols.some((c) => c.name === 'question_count')) sqlite.exec('ALTER TABLE questionnaires ADD COLUMN question_count INTEGER');
   return drizzle(sqlite, { schema });
 }
 
