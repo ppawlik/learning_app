@@ -25,6 +25,10 @@ export class AppPage {
 
   async createLearning(title = 'Biology basics', prompt = 'Ask about the cells shown in the pictures.') {
     await this.page.goto('/');
+    // The form is open from the start only when there are no topics; otherwise "Nowy temat" reveals it.
+    const newTopic = this.page.getByRole('button', { name: 'Nowy temat' });
+    await this.page.getByLabel('Tytuł').or(newTopic).first().waitFor();
+    if (await newTopic.isVisible()) await newTopic.click();
     await this.page.getByLabel('Tytuł').fill(title);
     await this.page.getByLabel(/Polecenie/).fill(prompt);
     await this.page.getByRole('button', { name: 'Utwórz temat' }).click();

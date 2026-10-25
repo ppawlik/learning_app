@@ -7,9 +7,15 @@ import { createDb, schema } from '../src/db/index.js';
 import type { ClaudeService } from '../src/claude/client.js';
 
 const failedOnce = new Set<number>();
+const failedGeneration = new Set<string>();
 
 const claude: ClaudeService = {
-  async generateQuestionnaire() {
+  // A learning prompt containing "boom" makes the first generation attempt throw, so the retry flow can be tested.
+  async generateQuestionnaire(prompt) {
+    if (prompt.includes('boom') && !failedGeneration.has(prompt)) {
+      failedGeneration.add(prompt);
+      throw new Error('Simulated generation failure');
+    }
     return {
       questions: [
         { text: 'What object is shown in the picture?', type: 'open', expectedAnswer: 'A cat' },
@@ -51,6 +57,7 @@ const app = buildApp({ db, claude, uploadsDir });
 app.post('/api/__e2e/reset', async (_req, reply) => {
   db.delete(schema.learnings).run();
   failedOnce.clear();
+  failedGeneration.clear();
   return reply.status(204).send();
 });
 

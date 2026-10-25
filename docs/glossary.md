@@ -8,6 +8,7 @@
 - **Statement**: the shared text of a question that has subquestions. It is never answered or reviewed.
 - **Answerable question**: a plain question or a subquestion.
 - **Label**: the number the page shows for an answerable question (`3`, `3b`), used in review feedback and summary.
+- **Set / attempt (Zestaw / Podejście)**: how users see a questionnaire and a submission: numbered per topic (Zestaw 1) and per set (Podejście 1) by creation order, never by database id.
 - **Submission**: one filling-in of a questionnaire; reviewed by Claude.
 - **Answer**: the learner's response to one answerable question (plain question or subquestion) within a submission, with a verdict and feedback after review.
 - **Verdict**: `passed` or `failed` per answer.

@@ -9,6 +9,7 @@ import { api } from '../../api/client';
 const failed = {
   id: 5,
   questionnaireId: 1,
+  learningId: 4,
   status: 'failed' as const,
   error: 'Interrupted by a server restart; please try again',
   successRate: null,
@@ -18,6 +19,7 @@ const failed = {
 };
 
 it('offers to retry a failed review', async () => {
+  vi.spyOn(api, 'getLearning').mockRejectedValue(new Error('offline'));
   vi.spyOn(api, 'getSubmission').mockResolvedValue(failed);
   const retry = vi.spyOn(api, 'retryReview').mockResolvedValue({ id: 5 });
   render(
@@ -30,6 +32,7 @@ it('offers to retry a failed review', async () => {
     </QueryClientProvider>,
   );
   expect(await screen.findByText(/interrupted by a server restart/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /wróć do tematu/i })).toHaveAttribute('href', '/learnings/4');
   await userEvent.click(screen.getByRole('button', { name: /ponów ocenę/i }));
   await waitFor(() => expect(retry).toHaveBeenCalledWith(5));
 });

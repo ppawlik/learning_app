@@ -1,11 +1,15 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { QuestionnairePage } from './QuestionnairePage';
 import { api } from '../../api/client';
 
 afterEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.spyOn(api, 'getLearning').mockRejectedValue(new Error('offline'));
+});
 
 const base = { id: 3, learningId: 1, error: null, createdAt: '', questions: [] };
 
@@ -24,12 +28,22 @@ it('shows a spinner while the questionnaire is being generated', async () => {
   vi.spyOn(api, 'getQuestionnaire').mockResolvedValue({ ...base, status: 'generating' });
   renderPage();
   expect(await screen.findByText(/claude generuje/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /wróć do tematu/i })).toHaveAttribute('href', '/learnings/1');
 });
 
 it('shows the stored error when generation failed', async () => {
   vi.spyOn(api, 'getQuestionnaire').mockResolvedValue({ ...base, status: 'failed', error: 'Claude ran out of tokens' });
   renderPage();
   expect(await screen.findByRole('alert')).toHaveTextContent('Claude ran out of tokens');
+  expect(screen.getByRole('link', { name: /wróć do tematu/i })).toHaveAttribute('href', '/learnings/1');
+});
+
+it('retries a failed generation from the page', async () => {
+  vi.spyOn(api, 'getQuestionnaire').mockResolvedValue({ ...base, status: 'failed', error: 'boom' });
+  const retry = vi.spyOn(api, 'retryQuestionnaire').mockResolvedValue({ id: 3 });
+  renderPage();
+  await userEvent.click(await screen.findByRole('button', { name: /wygeneruj ponownie/i }));
+  await waitFor(() => expect(retry).toHaveBeenCalledWith(3));
 });
 
 it('shows an error when the questionnaire cannot be loaded', async () => {

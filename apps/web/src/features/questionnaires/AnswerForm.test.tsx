@@ -79,6 +79,7 @@ it('clears the draft after a successful submit', async () => {
   renderForm();
   await userEvent.type(screen.getByLabelText('Odpowiedź 1'), 'a cat');
   await userEvent.click(screen.getByRole('button', { name: /wyślij odpowiedzi/i }));
+  await userEvent.click(await screen.findByRole('button', { name: /wyślij mimo to/i }));
   await waitFor(() => expect(localStorage.getItem(draftKey)).toBeNull());
 });
 
@@ -86,4 +87,34 @@ it('ignores a corrupt draft', () => {
   localStorage.setItem(draftKey, '{not json');
   renderForm();
   expect(screen.getByLabelText('Odpowiedź 1')).toHaveValue('');
+});
+
+it('counts answered questions and shows the draft indicator', async () => {
+  renderForm();
+  expect(screen.getByText('0 z 3 odpowiedzi')).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText('Odpowiedź 1'), 'a cat');
+  expect(screen.getByText('1 z 3 odpowiedzi')).toBeInTheDocument();
+  expect(screen.queryByText('Szkic zapisany')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByLabelText('y'));
+  expect(screen.getByText('Szkic zapisany')).toBeInTheDocument();
+  expect(screen.getByText('2 z 3 odpowiedzi')).toBeInTheDocument();
+});
+
+it('asks before submitting with empty answers and can go back to the form', async () => {
+  const spy = vi.spyOn(api, 'submitAnswers').mockResolvedValue({ id: 99 });
+  renderForm();
+  await userEvent.type(screen.getByLabelText('Odpowiedź 1'), 'a cat');
+  await userEvent.click(screen.getByRole('button', { name: /wyślij odpowiedzi/i }));
+  expect(screen.getByRole('alert')).toHaveTextContent('Masz 2 puste odpowiedzi. Wysłać mimo to?');
+  expect(spy).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: /wróć do formularza/i }));
+  expect(screen.getByText('1 z 3 odpowiedzi')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /wyślij odpowiedzi/i }));
+  await userEvent.click(screen.getByRole('button', { name: /wyślij mimo to/i }));
+  await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+});
+
+it('gives radio groups a legend with the question', () => {
+  renderForm();
+  expect(screen.getByRole('group', { name: /Odpowiedź 2a: Pick one/ })).toBeInTheDocument();
 });

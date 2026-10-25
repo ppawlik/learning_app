@@ -1,10 +1,10 @@
 import { eq, asc } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
-import { subquestionLabel, submitAnswersSchema } from '@learning/shared';
+import { questionLabel, subquestionLabel, submitAnswersSchema } from '@learning/shared';
 import { schema } from '../db/index.js';
 import type { AppDeps } from '../app.js';
 import { HttpError, idParams } from './util.js';
-import { reviewSubmission } from '../services/questionnaires.js';
+import { generateQuestionnaire, reviewSubmission } from '../services/questionnaires.js';
 
 const { questionnaires, questions, submissions, answers } = schema;
 
@@ -28,6 +28,39 @@ export const questionnaireRoutes =
           .filter((x) => x.parentId === null)
           .map((x) => ({ ...view(x), subquestions: qs.filter((c) => c.parentId === x.id).map(view) })),
       };
+    });
+
+    app.post('/questionnaires/:id/retry', async (req, reply) => {
+      const { id } = idParams.parse(req.params);
+      const q = db.select().from(questionnaires).where(eq(questionnaires.id, id)).get();
+      if (!q) throw new HttpError(404, 'Nie znaleziono zestawu pytań');
+      if (q.status !== 'failed') throw new HttpError(409, 'Ponowić można tylko nieudane generowanie');
+      db.update(questionnaires).set({ status: 'generating', error: null }).where(eq(questionnaires.id, id)).run();
+      req.log.info({ questionnaireId: id }, 'generation retried');
+      void generateQuestionnaire(db, claude, id, req.log);
+      return reply.status(202).send({ id, status: 'generating' });
+    });
+
+    app.delete('/questionnaires/:id', async (req, reply) => {
+      const { id } = idParams.parse(req.params);
+      const q = db.select().from(questionnaires).where(eq(questionnaires.id, id)).get();
+      if (!q) throw new HttpError(404, 'Nie znaleziono zestawu pytań');
+      if (q.status === 'generating') throw new HttpError(409, 'Zestaw pytań jest w trakcie generowania');
+      const reviewing = db.select().from(submissions).where(eq(submissions.questionnaireId, id)).all().some((s) => s.status === 'reviewing');
+      if (reviewing) throw new HttpError(409, 'Któreś podejście jest w trakcie oceny');
+      db.delete(questionnaires).where(eq(questionnaires.id, id)).run();
+      req.log.info({ questionnaireId: id }, 'questionnaire deleted');
+      return reply.status(204).send();
+    });
+
+    app.delete('/submissions/:id', async (req, reply) => {
+      const { id } = idParams.parse(req.params);
+      const s = db.select().from(submissions).where(eq(submissions.id, id)).get();
+      if (!s) throw new HttpError(404, 'Nie znaleziono podejścia');
+      if (s.status === 'reviewing') throw new HttpError(409, 'Podejście jest w trakcie oceny');
+      db.delete(submissions).where(eq(submissions.id, id)).run();
+      req.log.info({ submissionId: id }, 'submission deleted');
+      return reply.status(204).send();
     });
 
     app.post('/questionnaires/:id/submissions', async (req, reply) => {
@@ -78,24 +111,29 @@ export const questionnaireRoutes =
         .all();
       const byId = new Map(qs.map((x) => [x.id, x]));
       const rootQuestions = qs.filter((x) => x.parentId === null);
+      const qn = db.select().from(questionnaires).where(eq(questionnaires.id, s.questionnaireId)).get()!;
       const rows = db.select().from(answers).where(eq(answers.submissionId, id)).all();
       const entries = rows.map((a) => {
         const q = byId.get(a.questionId)!;
         const parent = q.parentId === null ? null : byId.get(q.parentId)!;
         const root = parent ?? q;
+        const questionNumber = rootQuestions.findIndex((t) => t.id === root.id) + 1;
         return {
           questionId: a.questionId,
+          label: questionLabel(questionNumber, parent ? q.position : null),
           questionText: q.text,
           parentText: parent?.text ?? null,
-          questionNumber: rootQuestions.findIndex((t) => t.id === root.id) + 1,
+          questionNumber,
           subLabel: parent ? subquestionLabel(q.position) : null,
           answer: a.answer,
           verdict: a.verdict,
           feedback: a.feedback,
+          // ADR 0012: the correct answer is revealed only for failed answers of a reviewed submission
+          expectedAnswer: s.status === 'reviewed' && a.verdict === 'failed' ? q.expectedAnswer : null,
           order: [root.position, parent ? q.position : -1],
         };
       });
       entries.sort((x, y) => x.order[0]! - y.order[0]! || x.order[1]! - y.order[1]!);
-      return { ...s, answers: entries.map(({ order, ...rest }) => rest) };
+      return { ...s, learningId: qn.learningId, answers: entries.map(({ order, ...rest }) => rest) };
     });
   };

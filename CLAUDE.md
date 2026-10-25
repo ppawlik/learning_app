@@ -29,12 +29,21 @@ Project knowledge lives in `docs/`: [requirements](docs/requirements.md) (FR-n I
 - Questions are hierarchical: `questions.parent_id` links subquestions to their parent question. Rows that have children are statements only; just the others get answers and reviews.
 - Claude work is asynchronous. `POST .../questionnaires` and `POST .../submissions` insert a row with status `generating` or `reviewing`, return 202, and run `generateQuestionnaire` / `reviewSubmission` (`src/services/questionnaires.ts`) fire-and-forget. These write `ready`/`reviewed` or `failed` plus an error message. The web app polls with TanStack Query `refetchInterval`. Rows still in `generating` or `reviewing` at startup are marked `failed` by `failInterruptedJobs` (ADR 0009), and `POST /submissions/:id/retry` re-runs a failed review.
 - `successRate` is computed server-side from the verdicts (`computeSuccessRate`), not taken from Claude. Questions missing from Claude's review count as failed.
-- `questions.expected_answer` must never be sent to the client. `GET /questionnaires/:id` omits it on purpose, and a test checks this.
+- `questions.expected_answer` is sent to the client only as `expectedAnswer` of a failed answer in a reviewed submission (ADR 0012). `GET /questionnaires/:id` omits it on purpose, and a test checks this.
 - Uploaded images are stored on disk under `uploads/<learningId>/`; the `images` table keeps the path. Claude receives them as base64 image blocks.
 
 **Claude API quirk:** this model rejects a forced `tool_choice` (`{type: 'tool'}`/`'any'`) with a 400 error. `callTool` in `src/claude/client.ts` therefore uses `tool_choice: auto`, adds a "respond only by calling the X tool" instruction, and validates the tool input with the shared Zod schema. The model comes from `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Generation behavior is steered by the prompt in `generateQuestionnaire` (no "Zadanie 1"/numbering prefixes in question text, because the UI numbers; lettered subquestions become `subquestions`); a prompt rule is not enforced in code, so check generated output after changing it.
 
 **`apps/web`** (React + Vite + Tailwind): the typed fetch wrapper in `src/api/client.ts` is the only code that talks to the API. Pages are in `src/features/{learnings,questionnaires,submissions}`. The answer form saves a draft to `localStorage` on blur (`draftAnswers.ts`) and clears it after submit.
+
+## UI conventions and learnings
+
+- **Design first.** A UI change starts in `docs/ui-layout.md` and the diagrams in `docs/diagrams/*.drawio.svg`, then the code follows. Diagrams are `.drawio.svg` (SVG image with the editable draw.io XML in its `content` attribute): they render in Markdown and open in draw.io. There is no draw.io CLI here; I generated them with a throwaway script, so after that edit them in draw.io. To check a diagram, render the SVG with Playwright's Chromium and look at the PNG.
+- **All user-visible text is Polish** (NFR-7), including API error messages. Unit and e2e tests query the Polish labels (`Odpowiedź 3b`, `Wyślij odpowiedzi`); change them together with the text.
+- **Never show database ids to the user or to Claude.** Questions use `questionLabel` (`3`, `3b`), sets and attempts are numbered per topic (`features/trail.ts`). The review summary once cited ids (327, 348) because the prompt only carried `questionId`; the prompt now passes a `label` and tells Claude to cite only labels.
+- **Confirm destructive actions inline** with `ConfirmButton` ("Na pewno? Tak / Nie"), not `window.confirm`. Every page needs a way back (breadcrumbs, `BackLink`) in every state, also while waiting and after a failure; failed jobs need a retry (`/retry` endpoints).
+- **Screenshots**: after an intended UI change run `pnpm e2e:update` and look at every changed PNG (also the new ones) before finishing; the sticky answer bar overlaps content in full-page screenshots, which is expected.
+- **Process**: commit and push only when asked. Prompt rules (summary shape, labels) are not enforced in code, so check real output after changing them.
 
 ## Git
 

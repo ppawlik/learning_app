@@ -46,7 +46,7 @@ sequenceDiagram
   W->>A: GET /submissions/:id (polling)
 ```
 
-The handlers return 202 immediately and run the Claude call without awaiting it. Errors are caught in the service and stored on the row. At startup `failInterruptedJobs` marks rows still in `generating`/`reviewing` as `failed` (ADR 0009), and `POST /submissions/:id/retry` re-runs the review of a failed submission.
+The handlers return 202 immediately and run the Claude call without awaiting it. Errors are caught in the service and stored on the row. At startup `failInterruptedJobs` marks rows still in `generating`/`reviewing` as `failed` (ADR 0009), and `POST /submissions/:id/retry` re-runs the review of a failed submission. `POST /questionnaires/:id/retry` does the same for a failed generation (ADR 0013). `PATCH /learnings/:id` edits a topic; `DELETE /questionnaires/:id` and `DELETE /submissions/:id` remove a set or an attempt (409 while a job runs). `GET /learnings` adds `questionnaireCount` and `lastSuccessRate`; `GET /learnings/:id` adds the stored `error` of questionnaires and submissions.
 
 ## Data model
 
@@ -114,7 +114,7 @@ erDiagram
 
 ## Invariants
 
-- `questions.expected_answer` never leaves the server. `GET /questionnaires/:id` selects fields explicitly and a test asserts it.
+- `questions.expected_answer` leaves the server only as `expectedAnswer` of a failed answer in `GET /submissions/:id` of a reviewed submission (ADR 0012). `GET /questionnaires/:id` selects fields explicitly and a test asserts it. `GET /submissions/:id` also returns `learningId` and a display `label` per answer (`questionLabel`).
 - Only answerable questions (no children) get answers, are sent to Claude for review and count in `successRate`. `GET /questionnaires/:id` returns questions with nested `subquestions`; numbering (1, 2) and lettering (a, b) are derived from `position`. The review prompt gives each question a display `label` (`questionLabel` in shared: `3`, `3b`) and tells Claude to cite only labels in feedback and summary, never `questionId`, so text matches the numbers on the page.
 - `successRate` is computed by `computeSuccessRate` from the verdicts, not taken from Claude. Questions missing from Claude's review count as failed.
 - The table definitions exist twice: Drizzle in `apps/api/src/db/schema.ts` and the raw DDL in `apps/api/src/db/index.ts`. Change both.

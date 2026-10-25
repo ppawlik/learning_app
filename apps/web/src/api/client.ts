@@ -3,6 +3,7 @@ import type {
   Learning,
   LearningDetail,
   LearningImage,
+  LearningListItem,
   Questionnaire,
   SubmitAnswersInput,
   Submission,
@@ -24,8 +25,9 @@ const json = (method: string, body: unknown): RequestInit => ({
 });
 
 export const api = {
-  listLearnings: () => request<Learning[]>('/api/learnings'),
+  listLearnings: () => request<LearningListItem[]>('/api/learnings'),
   createLearning: (input: CreateLearningInput) => request<Learning>('/api/learnings', json('POST', input)),
+  updateLearning: (id: number, input: CreateLearningInput) => request<Learning>(`/api/learnings/${id}`, json('PATCH', input)),
   getLearning: (id: number) => request<LearningDetail>(`/api/learnings/${id}`),
   deleteLearning: (id: number) => request<void>(`/api/learnings/${id}`, { method: 'DELETE' }),
   uploadImage: (learningId: number, file: File) => {
@@ -42,5 +44,8 @@ export const api = {
     request<{ id: number }>(`/api/questionnaires/${questionnaireId}/submissions`, json('POST', input)),
   retryReview: (submissionId: number) =>
     request<{ id: number }>(`/api/submissions/${submissionId}/retry`, { method: 'POST' }),
+  retryQuestionnaire: (id: number) => request<{ id: number }>(`/api/questionnaires/${id}/retry`, { method: 'POST' }),
+  deleteQuestionnaire: (id: number) => request<void>(`/api/questionnaires/${id}`, { method: 'DELETE' }),
+  deleteSubmission: (id: number) => request<void>(`/api/submissions/${id}`, { method: 'DELETE' }),
   getSubmission: (id: number) => request<Submission>(`/api/submissions/${id}`),
 };

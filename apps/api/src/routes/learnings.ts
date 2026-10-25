@@ -42,13 +42,33 @@ export const learningRoutes =
       return l;
     };
 
-    app.get('/learnings', async () => db.select().from(learnings).orderBy(desc(learnings.id)).all());
+    app.get('/learnings', async () => {
+      const rows = db.select().from(learnings).orderBy(desc(learnings.id)).all();
+      const qns = db.select().from(questionnaires).all();
+      const subs = db.select().from(submissions).where(eq(submissions.status, 'reviewed')).orderBy(desc(submissions.id)).all();
+      const learningOf = new Map(qns.map((q) => [q.id, q.learningId]));
+      return rows.map((l) => ({
+        ...l,
+        questionnaireCount: qns.filter((q) => q.learningId === l.id).length,
+        // subs is newest first, so the first match is the latest reviewed submission
+        lastSuccessRate: subs.find((s) => learningOf.get(s.questionnaireId) === l.id)?.successRate ?? null,
+      }));
+    });
 
     app.post('/learnings', async (req, reply) => {
       const body = createLearningSchema.parse(req.body);
       const row = db.insert(learnings).values(body).returning().get();
       req.log.info({ learningId: row.id }, 'learning created');
       return reply.status(201).send(row);
+    });
+
+    app.patch('/learnings/:id', async (req) => {
+      const { id } = idParams.parse(req.params);
+      getLearning(id);
+      const body = createLearningSchema.parse(req.body);
+      const row = db.update(learnings).set(body).where(eq(learnings.id, id)).returning().get();
+      req.log.info({ learningId: id }, 'learning updated');
+      return row;
     });
 
     app.get('/learnings/:id', async (req) => {
@@ -61,10 +81,10 @@ export const learningRoutes =
       return {
         ...learning,
         images: db.select().from(images).where(eq(images.learningId, id)).all().map(toImageDto),
-        questionnaires: qns.map((q) => ({ id: q.id, status: q.status, createdAt: q.createdAt })),
+        questionnaires: qns.map((q) => ({ id: q.id, status: q.status, error: q.error, createdAt: q.createdAt })),
         submissions: subs
           .sort((a, b) => b.id - a.id)
-          .map((s) => ({ id: s.id, questionnaireId: s.questionnaireId, status: s.status, successRate: s.successRate, createdAt: s.createdAt })),
+          .map((s) => ({ id: s.id, questionnaireId: s.questionnaireId, status: s.status, error: s.error, successRate: s.successRate, createdAt: s.createdAt })),
       };
     });
 

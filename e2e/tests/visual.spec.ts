@@ -53,6 +53,14 @@ test('failed review offers a retry', async ({ app, page }) => {
   await expect(page).toHaveScreenshot('review-failed.png', { fullPage: true });
 });
 
+test('failed generation explains itself and offers a retry', async ({ app, page }) => {
+  await app.createLearning('Retry me', 'boom: fail the first generation');
+  await app.uploadImage();
+  await page.getByRole('button', { name: 'Wygeneruj zestaw pytań' }).click();
+  await page.getByText('Niepowodzenie').waitFor();
+  await expect(page).toHaveScreenshot('learning-detail-failed-set.png', { fullPage: true, mask: [app.dates] });
+});
+
 test.describe('mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -61,5 +69,15 @@ test.describe('mobile', () => {
     await app.uploadImage();
     await app.generateQuestionnaire();
     await expect(page).toHaveScreenshot('answer-form-mobile.png', { fullPage: true });
+  });
+
+  test('review fits a phone', async ({ app, page }) => {
+    await app.createLearning();
+    await app.uploadImage();
+    await app.generateQuestionnaire();
+    await app.fillAnswers({ first: 'A cat', sky: 'Blue', a: 'Alpha', b: 'Gamma' });
+    await page.getByRole('button', { name: 'Wyślij odpowiedzi' }).click();
+    await expect(page.getByText('Wynik')).toBeVisible();
+    await expect(page).toHaveScreenshot('review-mobile.png', { fullPage: true });
   });
 });

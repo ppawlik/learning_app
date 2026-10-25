@@ -1,9 +1,34 @@
 import { useRef, useState, type DragEvent } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, UPLOAD_IMAGE_ACCEPT, isHeicFile } from '@learning/shared';
+import {
+  ALLOWED_IMAGE_TYPES,
+  MAX_IMAGES_PER_LEARNING,
+  MAX_IMAGE_BYTES,
+  UPLOAD_IMAGE_ACCEPT,
+  createLearningSchema,
+  isHeicFile,
+  type CreateLearningInput,
+  type LearningDetail,
+} from '@learning/shared';
 import { api } from '../../api/client';
-import { Card, ErrorMessage, Spinner, buttonClass } from '../../components/ui';
+import {
+  Breadcrumbs,
+  Card,
+  ConfirmButton,
+  ErrorMessage,
+  ImagePreview,
+  Spinner,
+  buttonClass,
+  inputClass,
+  linkClass,
+  secondaryButtonClass,
+} from '../../components/ui';
+import { setNumber } from '../trail';
+
+const datetime = (iso: string) => new Date(iso).toLocaleString('pl-PL');
 
 export function LearningDetailPage() {
   const id = Number(useParams().id);
@@ -12,6 +37,8 @@ export function LearningDetailPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [preview, setPreview] = useState<{ id: number; filename: string } | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['learning', id],
@@ -23,7 +50,10 @@ export function LearningDetailPage() {
         ? 2000
         : false,
   });
-  const refresh = () => qc.invalidateQueries({ queryKey: ['learning', id] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['learning', id] });
+    qc.invalidateQueries({ queryKey: ['learnings'] });
+  };
 
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
@@ -39,6 +69,10 @@ export function LearningDetailPage() {
   });
   const removeImage = useMutation({ mutationFn: api.deleteImage, onSuccess: refresh });
   const generate = useMutation({ mutationFn: () => api.generateQuestionnaire(id), onSuccess: refresh });
+  const retryGeneration = useMutation({ mutationFn: api.retryQuestionnaire, onSuccess: refresh });
+  const retryReview = useMutation({ mutationFn: api.retryReview, onSuccess: refresh });
+  const removeSet = useMutation({ mutationFn: api.deleteQuestionnaire, onSuccess: refresh });
+  const removeSubmission = useMutation({ mutationFn: api.deleteSubmission, onSuccess: refresh });
   const remove = useMutation({
     mutationFn: () => api.deleteLearning(id),
     onSuccess: () => {
@@ -55,26 +89,40 @@ export function LearningDetailPage() {
     setDragging(false);
     upload.mutate(Array.from(e.dataTransfer.files));
   };
+  const actionError = [generate, retryGeneration, retryReview, removeSet, removeSubmission, removeImage, remove].find((m) => m.error)?.error;
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[{ label: 'Tematy', to: '/' }, { label: data.title }]} />
       <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold">{data.title}</h1>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{data.prompt}</p>
+        {editing ? (
+          <EditForm
+            learning={data}
+            onDone={() => {
+              setEditing(false);
+              refresh();
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        ) : (
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-lg font-semibold">{data.title}</h1>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{data.prompt}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <button className={linkClass} onClick={() => setEditing(true)}>
+                Edytuj
+              </button>
+              <ConfirmButton label="Usuń" onConfirm={() => remove.mutate()} />
+            </div>
           </div>
-          <button
-            className="text-sm text-red-600 hover:underline"
-            onClick={() => window.confirm('Usunąć ten temat?') && remove.mutate()}
-          >
-            Usuń
-          </button>
-        </div>
+        )}
       </Card>
+      {actionError && <ErrorMessage error={actionError} />}
 
       <Card>
-        <h2 className="mb-3 font-semibold">Obrazy</h2>
+        <h2 className="mb-3 font-semibold">Obrazy ({data.images.length} z {MAX_IMAGES_PER_LEARNING})</h2>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -102,21 +150,27 @@ export function LearningDetailPage() {
         <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {data.images.map((img) => (
             <li key={img.id} className="relative">
-              <img src={api.imageUrl(img.id)} alt={img.filename} className="h-32 w-full rounded object-cover" />
-              <button
-                aria-label={`Usuń ${img.filename}`}
-                className="absolute right-1 top-1 rounded bg-white/90 px-2 text-sm"
-                onClick={() => removeImage.mutate(img.id)}
-              >
-                ×
+              <button type="button" className="block w-full" aria-label={`Podgląd ${img.filename}`} onClick={() => setPreview(img)}>
+                <img src={api.imageUrl(img.id)} alt={img.filename} className="h-32 w-full rounded object-cover" />
               </button>
+              <div className="absolute right-1 top-1 flex min-h-10 items-center rounded bg-white/90 px-2">
+                <ConfirmButton
+                  label={`Usuń ${img.filename}`}
+                  ariaLabel={`Usuń ${img.filename}`}
+                  className="min-h-10 min-w-10 text-lg"
+                  onConfirm={() => removeImage.mutate(img.id)}
+                >
+                  ×
+                </ConfirmButton>
+              </div>
             </li>
           ))}
         </ul>
+        {preview && <ImagePreview src={api.imageUrl(preview.id)} alt={preview.filename} onClose={() => setPreview(null)} />}
       </Card>
 
       <Card>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="font-semibold">Zestawy pytań</h2>
           <button
             className={buttonClass}
@@ -127,35 +181,111 @@ export function LearningDetailPage() {
           </button>
         </div>
         {data.images.length === 0 && <p className="text-sm text-slate-500">Prześlij co najmniej jeden obraz, aby wygenerować zestaw pytań.</p>}
-        {generate.error && <ErrorMessage error={generate.error} />}
         <ul className="space-y-2">
-          {data.questionnaires.map((q) => {
-            const subs = data.submissions.filter((s) => s.questionnaireId === q.id);
+          {data.questionnaires.map((q) => (
+            <SetRow
+              key={q.id}
+              detail={data}
+              q={q}
+              onRetryGeneration={() => retryGeneration.mutate(q.id)}
+              onRetryReview={(sid) => retryReview.mutate(sid)}
+              onDeleteSet={() => removeSet.mutate(q.id)}
+              onDeleteSubmission={(sid) => removeSubmission.mutate(sid)}
+            />
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+function SetRow({
+  detail,
+  q,
+  onRetryGeneration,
+  onRetryReview,
+  onDeleteSet,
+  onDeleteSubmission,
+}: {
+  detail: LearningDetail;
+  q: LearningDetail['questionnaires'][number];
+  onRetryGeneration: () => void;
+  onRetryReview: (submissionId: number) => void;
+  onDeleteSet: () => void;
+  onDeleteSubmission: (submissionId: number) => void;
+}) {
+  const subs = detail.submissions.filter((s) => s.questionnaireId === q.id).sort((a, b) => a.id - b.id);
+  const rates = subs.filter((s) => s.status === 'reviewed' && s.successRate !== null).map((s) => `${s.successRate}%`);
+  return (
+    <li className="rounded border border-slate-200 p-3 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium">
+          Zestaw {setNumber(detail, q.id)} <span className="font-normal text-slate-500">· {datetime(q.createdAt)}</span>
+        </span>
+        <span className="flex items-center gap-3">
+          {q.status === 'generating' && <span className="text-slate-500">Generowanie…</span>}
+          {q.status === 'failed' && <span className="text-red-600">Niepowodzenie</span>}
+          {q.status === 'ready' && <Link className={linkClass} to={`/questionnaires/${q.id}`}>Otwórz</Link>}
+          {q.status !== 'generating' && <ConfirmButton label="Usuń" ariaLabel={`Usuń zestaw ${setNumber(detail, q.id)}`} onConfirm={onDeleteSet} />}
+        </span>
+      </div>
+      {q.status === 'failed' && (
+        <div className="mt-2 space-y-2">
+          {q.error && <p className="text-xs text-red-700">{q.error}</p>}
+          <button className={secondaryButtonClass} onClick={onRetryGeneration}>Wygeneruj ponownie</button>
+        </div>
+      )}
+      {subs.length > 0 && (
+        <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2">
+          {[...subs].reverse().map((s) => {
+            const n = subs.findIndex((x) => x.id === s.id) + 1;
             return (
-              <li key={q.id} className="rounded border border-slate-200 p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Zestaw pytań #{q.id} · {new Date(q.createdAt).toLocaleString('pl-PL')}</span>
-                  {q.status === 'generating' && <span className="text-slate-500">Generowanie…</span>}
-                  {q.status === 'failed' && <span className="text-red-600">Niepowodzenie</span>}
-                  {q.status === 'ready' && <Link className="text-indigo-600 hover:underline" to={`/questionnaires/${q.id}`}>Otwórz</Link>}
-                </div>
-                {subs.length > 0 && (
-                  <ul className="mt-2 space-y-1 border-t pt-2">
-                    {subs.map((s) => (
-                      <li key={s.id}>
-                        <Link className="text-indigo-600 hover:underline" to={`/submissions/${s.id}`}>
-                          Podejście #{s.id}
-                        </Link>{' '}
-                        {s.status === 'reviewed' ? `· ${s.successRate}% poprawnych` : s.status === 'failed' ? '· ocena nie powiodła się' : '· ocenianie…'}
-                      </li>
-                    ))}
-                  </ul>
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <Link className={linkClass} to={`/submissions/${s.id}`}>Podejście {n}</Link>{' '}
+                  <span className="text-slate-500">· {datetime(s.createdAt)} </span>
+                  {s.status === 'reviewed' ? `· ${s.successRate}% poprawnych` : s.status === 'failed' ? '· ocena nie powiodła się' : '· ocenianie…'}
+                </span>
+                {s.status !== 'reviewing' && <ConfirmButton label="Usuń" ariaLabel={`Usuń podejście ${n}`} onConfirm={() => onDeleteSubmission(s.id)} />}
+                {s.status === 'failed' && (
+                  <span className="flex w-full items-center gap-3 text-xs text-red-700">
+                    {s.error}
+                    <button className={linkClass} onClick={() => onRetryReview(s.id)}>Ponów ocenę</button>
+                  </span>
                 )}
               </li>
             );
           })}
+          {rates.length > 1 && <li className="text-xs font-medium text-green-700">Trend: {rates.join(' → ')}</li>}
         </ul>
-      </Card>
-    </div>
+      )}
+    </li>
+  );
+}
+
+function EditForm({ learning, onDone, onCancel }: { learning: LearningDetail; onDone: () => void; onCancel: () => void }) {
+  const { register, handleSubmit, formState } = useForm<CreateLearningInput>({
+    resolver: zodResolver(createLearningSchema),
+    defaultValues: { title: learning.title, prompt: learning.prompt },
+  });
+  const save = useMutation({ mutationFn: (v: CreateLearningInput) => api.updateLearning(learning.id, v), onSuccess: onDone });
+  return (
+    <form onSubmit={handleSubmit((v) => save.mutate(v))} className="space-y-3">
+      <div>
+        <label htmlFor="edit-title" className="mb-1 block text-sm">Tytuł</label>
+        <input id="edit-title" className={inputClass} aria-describedby="edit-title-error" {...register('title')} />
+        {formState.errors.title && <p id="edit-title-error" className="text-xs text-red-600">Tytuł jest wymagany</p>}
+      </div>
+      <div>
+        <label htmlFor="edit-prompt" className="mb-1 block text-sm">Polecenie</label>
+        <textarea id="edit-prompt" rows={4} className={inputClass} aria-describedby="edit-prompt-error" {...register('prompt')} />
+        {formState.errors.prompt && <p id="edit-prompt-error" className="text-xs text-red-600">Polecenie jest wymagane</p>}
+      </div>
+      {save.error && <ErrorMessage error={save.error} />}
+      <div className="flex gap-2">
+        <button className={buttonClass} disabled={save.isPending}>Zapisz</button>
+        <button type="button" className={secondaryButtonClass} onClick={onCancel}>Anuluj</button>
+      </div>
+    </form>
   );
 }

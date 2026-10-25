@@ -23,6 +23,14 @@ export const learningSchema = createLearningSchema.extend({
 });
 export type Learning = z.infer<typeof learningSchema>;
 
+/** A learning in the topic list, with a little context about its questionnaires. */
+export const learningListItemSchema = learningSchema.extend({
+  questionnaireCount: z.number().int(),
+  /** Success rate of the newest reviewed submission, or null when there is none. */
+  lastSuccessRate: z.number().nullable(),
+});
+export type LearningListItem = z.infer<typeof learningListItemSchema>;
+
 export const imageSchema = z.object({
   id: z.number().int(),
   learningId: z.number().int(),
@@ -123,6 +131,7 @@ export type ReviewResult = z.infer<typeof reviewResultSchema>;
 export const submissionSchema = z.object({
   id: z.number().int(),
   questionnaireId: z.number().int(),
+  learningId: z.number().int(),
   status: z.enum(['reviewing', 'reviewed', 'failed']),
   error: z.string().nullable(),
   successRate: z.number().nullable(),
@@ -131,6 +140,8 @@ export const submissionSchema = z.object({
   answers: z.array(
     z.object({
       questionId: z.number().int(),
+      /** Display label shown on the page and cited in feedback: "3" or "3b". */
+      label: z.string(),
       questionText: z.string(),
       /** Statement of the question this answer's subquestion belongs to; null for a plain question. */
       parentText: z.string().nullable(),
@@ -141,6 +152,8 @@ export const submissionSchema = z.object({
       answer: z.string(),
       verdict: z.enum(['passed', 'failed']).nullable(),
       feedback: z.string().nullable(),
+      /** Only for failed answers of a reviewed submission (ADR 0012); null otherwise. */
+      expectedAnswer: z.string().nullable(),
     }),
   ),
 });
@@ -148,12 +161,15 @@ export type Submission = z.infer<typeof submissionSchema>;
 
 export const learningDetailSchema = learningSchema.extend({
   images: z.array(imageSchema),
-  questionnaires: z.array(z.object({ id: z.number().int(), status: questionnaireStatusSchema, createdAt: z.string() })),
+  questionnaires: z.array(
+    z.object({ id: z.number().int(), status: questionnaireStatusSchema, error: z.string().nullable(), createdAt: z.string() }),
+  ),
   submissions: z.array(
     z.object({
       id: z.number().int(),
       questionnaireId: z.number().int(),
       status: z.enum(['reviewing', 'reviewed', 'failed']),
+      error: z.string().nullable(),
       successRate: z.number().nullable(),
       createdAt: z.string(),
     }),

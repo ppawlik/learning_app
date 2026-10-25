@@ -110,6 +110,10 @@ describe('api', () => {
     expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed', 'failed', 'failed']);
     expect(result.answers.map((a: { questionNumber: number; subLabel: string | null }) => `${a.questionNumber}${a.subLabel ?? ''}`)).toEqual(['1', '2', '3a', '3b']);
     expect(result.answers[2].parentText).toBe('Question 3 statement');
+    expect(result.learningId).toBe(id);
+    expect(result.answers.map((x: { label: string }) => x.label)).toEqual(['1', '2', '3a', '3b']);
+    // ADR 0012: only failed answers of a reviewed submission carry the correct answer
+    expect(result.answers.map((x: { expectedAnswer: string | null }) => x.expectedAnswer)).toEqual([null, 'x', 'B1', 'B2']);
 
     const statement = qn.questions[2];
     const bad = await app.inject({
@@ -118,6 +122,91 @@ describe('api', () => {
       payload: { answers: [{ questionId: statement.id, answer: 'x' }] },
     });
     expect(bad.statusCode).toBe(400);
+  });
+
+  describe('management', () => {
+    const create = async (title = 'T') =>
+      (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title, prompt: 'P' } })).json().id as number;
+    const makeSet = async (id: number) => {
+      await app.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+      const gen = await app.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` });
+      await wait(50);
+      return gen.json().id as number;
+    };
+    const answerAll = async (qnId: number) => {
+      const qn = (await app.inject({ method: 'GET', url: `/api/questionnaires/${qnId}` })).json();
+      const sub = await app.inject({ method: 'POST', url: `/api/questionnaires/${qnId}/submissions`, payload: { answers: [{ questionId: qn.questions[0].id, answer: 'A1' }] } });
+      await wait(50);
+      return sub.json().id as number;
+    };
+
+    it('lists topics with the set count and the latest reviewed result', async () => {
+      const a = await create('A');
+      await create('B');
+      const set = await makeSet(a);
+      await answerAll(set);
+      const list = (await app.inject({ method: 'GET', url: '/api/learnings' })).json();
+      const byTitle = Object.fromEntries(list.map((l: { title: string }) => [l.title, l]));
+      expect(byTitle.A).toMatchObject({ questionnaireCount: 1, lastSuccessRate: 25 });
+      expect(byTitle.B).toMatchObject({ questionnaireCount: 0, lastSuccessRate: null });
+    });
+
+    it('updates a topic and validates the body', async () => {
+      const id = await create();
+      const ok = await app.inject({ method: 'PATCH', url: `/api/learnings/${id}`, payload: { title: 'New', prompt: 'New prompt' } });
+      expect(ok.statusCode).toBe(200);
+      expect((await app.inject({ method: 'GET', url: `/api/learnings/${id}` })).json()).toMatchObject({ title: 'New', prompt: 'New prompt' });
+      expect((await app.inject({ method: 'PATCH', url: `/api/learnings/${id}`, payload: { title: '', prompt: 'x' } })).statusCode).toBe(400);
+      expect((await app.inject({ method: 'PATCH', url: '/api/learnings/9999', payload: { title: 'a', prompt: 'b' } })).statusCode).toBe(404);
+    });
+
+    it('deletes a set with its submissions and a single submission', async () => {
+      const id = await create();
+      const set = await makeSet(id);
+      const sub = await answerAll(set);
+      expect((await app.inject({ method: 'DELETE', url: `/api/submissions/${sub}` })).statusCode).toBe(204);
+      expect((await app.inject({ method: 'GET', url: `/api/submissions/${sub}` })).statusCode).toBe(404);
+      const sub2 = await answerAll(set);
+      expect((await app.inject({ method: 'DELETE', url: `/api/questionnaires/${set}` })).statusCode).toBe(204);
+      expect((await app.inject({ method: 'GET', url: `/api/submissions/${sub2}` })).statusCode).toBe(404);
+      expect((await app.inject({ method: 'DELETE', url: `/api/questionnaires/${set}` })).statusCode).toBe(404);
+    });
+
+    it('refuses to delete work that is still running', async () => {
+      const slowApp = buildApp({
+        db: createDb(':memory:'),
+        claude: { ...fakeClaude, generateQuestionnaire: () => new Promise(() => {}), reviewAnswers: () => new Promise(() => {}) },
+        uploadsDir: dir,
+      });
+      const { id } = (await slowApp.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+      await slowApp.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+      const gen = (await slowApp.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` })).json();
+      expect((await slowApp.inject({ method: 'DELETE', url: `/api/questionnaires/${gen.id}` })).statusCode).toBe(409);
+      expect((await slowApp.inject({ method: 'POST', url: `/api/questionnaires/${gen.id}/retry` })).statusCode).toBe(409);
+      await slowApp.close();
+    });
+
+    it('retries a failed generation on the same questionnaire', async () => {
+      let fail = true;
+      const flaky = buildApp({
+        db: createDb(':memory:'),
+        claude: { ...fakeClaude, generateQuestionnaire: async (...args) => { if (fail) throw new Error('boom'); return fakeClaude.generateQuestionnaire(...args); } },
+        uploadsDir: dir,
+      });
+      const { id } = (await flaky.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
+      await flaky.inject({ method: 'POST', url: `/api/learnings/${id}/images`, ...multipartBody('a.png', 'image/png', PNG) });
+      const gen = (await flaky.inject({ method: 'POST', url: `/api/learnings/${id}/questionnaires` })).json();
+      await wait(50);
+      const detail = (await flaky.inject({ method: 'GET', url: `/api/learnings/${id}` })).json();
+      expect(detail.questionnaires[0]).toMatchObject({ id: gen.id, status: 'failed', error: 'boom' });
+      fail = false;
+      expect((await flaky.inject({ method: 'POST', url: `/api/questionnaires/${gen.id}/retry` })).statusCode).toBe(202);
+      await wait(50);
+      const after = (await flaky.inject({ method: 'GET', url: `/api/questionnaires/${gen.id}` })).json();
+      expect(after).toMatchObject({ status: 'ready', error: null });
+      expect((await flaky.inject({ method: 'POST', url: `/api/questionnaires/${gen.id}/retry` })).statusCode).toBe(409);
+      await flaky.close();
+    });
   });
 
   it('rejects non-image uploads', async () => {
