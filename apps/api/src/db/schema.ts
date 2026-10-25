@@ -35,7 +35,7 @@ export const questions = sqliteTable('questions', {
   questionnaireId: integer('questionnaire_id').notNull().references(() => questionnaires.id, { onDelete: 'cascade' }),
   // Self-reference: set on subquestions. Parent rows are statements only and get no answers.
   parentId: integer('parent_id').references((): AnySQLiteColumn => questions.id, { onDelete: 'cascade' }),
-  // Index among siblings (top-level tasks, or subquestions of one parent).
+  // Index among siblings (top-level questions, or subquestions of one parent).
   position: integer('position').notNull(),
   text: text('text').notNull(),
   type: text('type', { enum: ['open', 'multiple_choice'] }).notNull(),

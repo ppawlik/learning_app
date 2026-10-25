@@ -37,7 +37,7 @@ describe('createLearningSchema', () => {
 describe('generatedQuestionnaireSchema', () => {
   const leaf = { text: 'Q?', type: 'open', expectedAnswer: 'A' };
 
-  it('accepts plain tasks and tasks with subquestions', () => {
+  it('accepts plain questions and questions with subquestions', () => {
     const ok = generatedQuestionnaireSchema.safeParse({
       questions: [leaf, { text: 'Statement', subquestions: [leaf, { ...leaf, type: 'multiple_choice', options: ['x'] }] }],
     });
@@ -46,9 +46,9 @@ describe('generatedQuestionnaireSchema', () => {
 
   it.each([
     ['no questions', { questions: [] }],
-    ['plain task without expectedAnswer', { questions: [{ text: 'Q?', type: 'open' }] }],
-    ['task with neither type nor subquestions', { questions: [{ text: 'Q?' }] }],
-    ['task with subquestions and its own type', { questions: [{ text: 'S', type: 'open', subquestions: [leaf] }] }],
+    ['plain question without expectedAnswer', { questions: [{ text: 'Q?', type: 'open' }] }],
+    ['question with neither type nor subquestions', { questions: [{ text: 'Q?' }] }],
+    ['question with subquestions and its own type', { questions: [{ text: 'S', type: 'open', subquestions: [leaf] }] }],
     ['subquestion without expectedAnswer', { questions: [{ text: 'S', subquestions: [{ text: 'a', type: 'open' }] }] }],
   ])('rejects %s', (_name, input) => {
     expect(generatedQuestionnaireSchema.safeParse(input).success).toBe(false);

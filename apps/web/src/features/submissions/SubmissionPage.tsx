@@ -43,13 +43,13 @@ export function SubmissionPage() {
         {data.summary && <p className="mt-3 whitespace-pre-wrap text-sm">{data.summary}</p>}
       </Card>
       {data.answers.map((a, i) => {
-        const first = data.answers[i - 1]?.taskNumber !== a.taskNumber;
+        const first = data.answers[i - 1]?.questionNumber !== a.questionNumber;
         return (
           <Card key={a.questionId}>
-            {a.parentText && first && <p className="mb-3 font-medium">{a.taskNumber}. {a.parentText}</p>}
+            {a.parentText && first && <p className="mb-3 font-medium">{a.questionNumber}. {a.parentText}</p>}
             <div className={`flex items-start justify-between gap-3 ${a.parentText ? 'border-l-2 border-slate-200 pl-4' : ''}`}>
               <p className="font-medium">
-                {a.subLabel ? `${a.subLabel}) ` : `${a.taskNumber}. `}
+                {a.subLabel ? `${a.subLabel}) ` : `${a.questionNumber}. `}
                 {a.questionText}
               </p>
               <span

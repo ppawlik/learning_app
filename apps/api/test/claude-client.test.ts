@@ -57,7 +57,7 @@ describe('createClaudeService', () => {
     await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow();
   });
 
-  it('sends the task statement as context when reviewing a subquestion', async () => {
+  it('sends the question statement as context when reviewing a subquestion', async () => {
     create.mockResolvedValue(toolUse({ answers: [{ questionId: 2, verdict: 'passed', feedback: 'ok' }], summary: 's' }));
     const result = await createClaudeService(log, 'key').reviewAnswers({
       learningPrompt: 'p',
@@ -70,8 +70,8 @@ describe('createClaudeService', () => {
 
     expect(result.summary).toBe('s');
     const sent = JSON.stringify(create.mock.calls[0]![0].messages);
-    expect(sent).toContain('taskStatement');
+    expect(sent).toContain('questionStatement');
     expect(sent).toContain('Shared statement');
-    expect(sent.match(/taskStatement/g)).toHaveLength(1); // plain tasks carry no context
+    expect(sent.match(/questionStatement/g)).toHaveLength(1); // plain questions carry no context
   });
 });

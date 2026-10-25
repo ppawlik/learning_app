@@ -54,17 +54,17 @@ const questionnaireTool: Anthropic.Tool = {
           properties: {
             text: {
               type: 'string',
-              description: 'The question, or the shared statement of a task that has subquestions',
+              description: 'The question, or the shared statement of a question that has subquestions',
             },
-            type: { type: 'string', enum: ['open', 'multiple_choice'], description: 'Omit when the task has subquestions' },
+            type: { type: 'string', enum: ['open', 'multiple_choice'], description: 'Omit when the question has subquestions' },
             options: { type: 'array', items: { type: 'string' }, description: 'Required for multiple_choice' },
             expectedAnswer: {
               type: 'string',
-              description: 'The correct answer (for multiple_choice, the exact correct option text). Omit when the task has subquestions',
+              description: 'The correct answer (for multiple_choice, the exact correct option text). Omit when the question has subquestions',
             },
             subquestions: {
               type: 'array',
-              description: 'One entry per lettered subtask (a, b, c, ...), each answered separately',
+              description: 'One entry per lettered subquestion (a, b, c, ...), each answered separately',
               items: {
                 type: 'object',
                 properties: {
@@ -157,8 +157,8 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
             `Follow the instructions above (including how many questions to create, if stated; otherwise create 5-10). ` +
             `Base every question on the image content. Provide the expected answer for each question. ` +
             `Do not prefix question text with numbering or labels such as "Zadanie 1", "Task 1" or "1."; the app numbers questions itself. ` +
-            `When a task has subtasks identified by letters (a, b, c, ...), create ONE task whose text is the shared statement and put every subtask in its subquestions array, ` +
-            `without letter labels; do not set type or expectedAnswer on that task. Do not merge subtasks into one question.`,
+            `When a question has subquestions identified by letters (a, b, c, ...), create ONE question whose text is the shared statement and put every subquestion in its subquestions array, ` +
+            `without letter labels; do not set type or expectedAnswer on that question. Do not merge subquestions into one question.`,
         },
       ];
       return generatedQuestionnaireSchema.parse(await callTool(questionnaireTool, content));
@@ -168,7 +168,7 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
       const payload = items.map((i) => ({
         questionId: i.questionId,
         label: i.label,
-        ...(i.context ? { taskStatement: i.context } : {}),
+        ...(i.context ? { questionStatement: i.context } : {}),
         question: i.text,
         options: i.options,
         expectedAnswer: i.expectedAnswer,

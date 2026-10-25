@@ -13,7 +13,7 @@ test('full flow: learning, image, questionnaire with subquestions, review', asyn
   await app.uploadImage();
   await app.generateQuestionnaire();
 
-  // Hierarchy: numbered tasks, lettered subquestions, a separate input for each subquestion.
+  // Hierarchy: numbered questions, lettered subquestions, a separate input for each subquestion.
   await expect(page.getByText('2. Which colour is the sky?')).toBeVisible();
   await expect(page.getByText('3. Study the diagram and answer the questions below.')).toBeVisible();
   await expect(page.getByText('a) Name the first element.')).toBeVisible();

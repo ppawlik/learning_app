@@ -28,7 +28,7 @@ const fakeClaude: ClaudeService = {
         { text: 'Q1?', type: 'open', expectedAnswer: 'A1' },
         { text: 'Q2?', type: 'multiple_choice', options: ['x', 'y'], expectedAnswer: 'x' },
         {
-          text: 'Task 3 statement',
+          text: 'Question 3 statement',
           subquestions: [
             { text: 'First part?', type: 'open', expectedAnswer: 'B1' },
             { text: 'Second part?', type: 'open', expectedAnswer: 'B2' },
@@ -105,11 +105,11 @@ describe('api', () => {
 
     const result = (await app.inject({ method: 'GET', url: `/api/submissions/${sub.json().id}` })).json();
     expect(result.status).toBe('reviewed');
-    // Four answerable questions (the task statement is not reviewed): 1 passed, 3 failed.
+    // Four answerable questions (the question statement is not reviewed): 1 passed, 3 failed.
     expect(result.successRate).toBe(25);
     expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed', 'failed', 'failed']);
-    expect(result.answers.map((a: { taskNumber: number; subLabel: string | null }) => `${a.taskNumber}${a.subLabel ?? ''}`)).toEqual(['1', '2', '3a', '3b']);
-    expect(result.answers[2].parentText).toBe('Task 3 statement');
+    expect(result.answers.map((a: { questionNumber: number; subLabel: string | null }) => `${a.questionNumber}${a.subLabel ?? ''}`)).toEqual(['1', '2', '3a', '3b']);
+    expect(result.answers[2].parentText).toBe('Question 3 statement');
 
     const statement = qn.questions[2];
     const bad = await app.inject({

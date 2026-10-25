@@ -77,22 +77,22 @@ export const questionnaireRoutes =
         .orderBy(asc(questions.position))
         .all();
       const byId = new Map(qs.map((x) => [x.id, x]));
-      const tasks = qs.filter((x) => x.parentId === null);
+      const rootQuestions = qs.filter((x) => x.parentId === null);
       const rows = db.select().from(answers).where(eq(answers.submissionId, id)).all();
       const entries = rows.map((a) => {
         const q = byId.get(a.questionId)!;
         const parent = q.parentId === null ? null : byId.get(q.parentId)!;
-        const task = parent ?? q;
+        const root = parent ?? q;
         return {
           questionId: a.questionId,
           questionText: q.text,
           parentText: parent?.text ?? null,
-          taskNumber: tasks.findIndex((t) => t.id === task.id) + 1,
+          questionNumber: rootQuestions.findIndex((t) => t.id === root.id) + 1,
           subLabel: parent ? subquestionLabel(q.position) : null,
           answer: a.answer,
           verdict: a.verdict,
           feedback: a.feedback,
-          order: [task.position, parent ? q.position : -1],
+          order: [root.position, parent ? q.position : -1],
         };
       });
       entries.sort((x, y) => x.order[0]! - y.order[0]! || x.order[1]! - y.order[1]!);

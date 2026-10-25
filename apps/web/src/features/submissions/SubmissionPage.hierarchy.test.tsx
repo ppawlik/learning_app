@@ -11,7 +11,7 @@ const answer = (over: object) => ({
   questionId: 1,
   questionText: 'Q',
   parentText: null,
-  taskNumber: 1,
+  questionNumber: 1,
   subLabel: null,
   answer: 'mine',
   verdict: 'passed' as const,
@@ -32,7 +32,7 @@ const renderPage = () =>
 
 const submission = { id: 9, questionnaireId: 1, error: null, createdAt: '' };
 
-it('shows the review with the task statement printed once above its lettered subquestions', async () => {
+it('shows the review with the question statement printed once above its lettered subquestions', async () => {
   vi.spyOn(api, 'getSubmission').mockResolvedValue({
     ...submission,
     status: 'reviewed',
@@ -40,8 +40,8 @@ it('shows the review with the task statement printed once above its lettered sub
     summary: 'Well done',
     answers: [
       answer({ questionId: 1, questionText: 'Plain' }),
-      answer({ questionId: 2, questionText: 'Part one', parentText: 'Statement', taskNumber: 2, subLabel: 'a' }),
-      answer({ questionId: 3, questionText: 'Part two', parentText: 'Statement', taskNumber: 2, subLabel: 'b', verdict: 'failed', answer: '' }),
+      answer({ questionId: 2, questionText: 'Part one', parentText: 'Statement', questionNumber: 2, subLabel: 'a' }),
+      answer({ questionId: 3, questionText: 'Part two', parentText: 'Statement', questionNumber: 2, subLabel: 'b', verdict: 'failed', answer: '' }),
     ],
   });
   renderPage();

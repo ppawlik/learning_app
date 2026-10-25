@@ -38,7 +38,7 @@ it('shows an error when the questionnaire cannot be loaded', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Questionnaire not found');
 });
 
-it('numbers tasks and letters subquestions, with an input for each answerable question only', async () => {
+it('numbers questions and letters subquestions, with an input for each answerable question only', async () => {
   vi.spyOn(api, 'getQuestionnaire').mockResolvedValue({
     ...base,
     status: 'ready',

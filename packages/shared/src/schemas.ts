@@ -37,9 +37,9 @@ export const questionTypeSchema = z.enum(['open', 'multiple_choice']);
 /** Letter label of the subquestion at a 0-based index: 0 -> "a", 1 -> "b", ... */
 export const subquestionLabel = (index: number): string => String.fromCharCode(97 + index);
 
-/** Display number of an answerable question, as shown in the UI: "3" for a plain task, "3b" for a subquestion. */
-export const questionLabel = (taskNumber: number, subIndex: number | null): string =>
-  subIndex === null ? String(taskNumber) : `${taskNumber}${subquestionLabel(subIndex)}`;
+/** Display number of an answerable question, as shown in the UI: "3" for a plain question, "3b" for a subquestion. */
+export const questionLabel = (questionNumber: number, subIndex: number | null): string =>
+  subIndex === null ? String(questionNumber) : `${questionNumber}${subquestionLabel(subIndex)}`;
 
 const generatedLeafSchema = z.object({
   text: z.string().min(1),
@@ -49,7 +49,7 @@ const generatedLeafSchema = z.object({
 });
 
 /**
- * Shape Claude must produce when generating a questionnaire. A task is either a plain question
+ * Shape Claude must produce when generating a questionnaire. A top-level question is either a plain question
  * (type + expectedAnswer) or a statement with subquestions (each answered separately).
  */
 export const generatedQuestionnaireSchema = z.object({
@@ -65,7 +65,7 @@ export const generatedQuestionnaireSchema = z.object({
         })
         .refine(
           (q) => (q.subquestions?.length ? q.type === undefined : q.type !== undefined && q.expectedAnswer !== undefined),
-          { message: 'A task needs either type and expectedAnswer, or subquestions' },
+          { message: 'A question needs either type and expectedAnswer, or subquestions' },
         ),
     )
     .min(1),
@@ -83,7 +83,7 @@ export const subquestionSchema = z.object({
 export type Subquestion = z.infer<typeof subquestionSchema>;
 
 /**
- * Top-level task. With no subquestions it is answered itself; otherwise only its subquestions
+ * Top-level question. With no subquestions it is answered itself; otherwise only its subquestions
  * are answered and `text` is the shared statement (its type/options are then meaningless).
  */
 export const questionSchema = subquestionSchema.extend({ subquestions: z.array(subquestionSchema) });
@@ -132,11 +132,11 @@ export const submissionSchema = z.object({
     z.object({
       questionId: z.number().int(),
       questionText: z.string(),
-      /** Statement of the task this answer's subquestion belongs to; null for a plain task. */
+      /** Statement of the question this answer's subquestion belongs to; null for a plain question. */
       parentText: z.string().nullable(),
-      /** 1-based task number. */
-      taskNumber: z.number().int(),
-      /** Letter of the subquestion within its task; null for a plain task. */
+      /** 1-based number of the top-level question. */
+      questionNumber: z.number().int(),
+      /** Letter of the subquestion within its parent question; null for a plain question. */
       subLabel: z.string().nullable(),
       answer: z.string(),
       verdict: z.enum(['passed', 'failed']).nullable(),

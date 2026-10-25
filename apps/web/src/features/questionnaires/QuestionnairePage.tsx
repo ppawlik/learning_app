@@ -32,7 +32,7 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
   const submit = useMutation({
     mutationFn: (v: FormValues) =>
       api.submitAnswers(questionnaire.id, {
-        // Only answerable questions: plain tasks and subquestions, not task statements.
+        // Only answerable questions: plain questions and subquestions, not question statements.
         answers: questionnaire.questions
           .flatMap((q) => (q.subquestions.length ? q.subquestions : [q]))
           .map((q) => ({ questionId: q.id, answer: v.answers?.[q.id] ?? '' })),

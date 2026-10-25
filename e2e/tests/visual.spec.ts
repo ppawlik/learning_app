@@ -22,7 +22,7 @@ test('learning detail with an image and a questionnaire', async ({ app, page }) 
   await expect(page).toHaveScreenshot('learning-detail.png', { fullPage: true, mask: [app.dates] });
 });
 
-test('answer form shows tasks with lettered subquestions', async ({ app, page }) => {
+test('answer form shows questions with lettered subquestions', async ({ app, page }) => {
   await app.createLearning();
   await app.uploadImage();
   await app.generateQuestionnaire();
