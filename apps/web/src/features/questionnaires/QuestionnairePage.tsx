@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { subquestionLabel, type Questionnaire, type Subquestion } from '@learning/shared';
+import { questionLabel, subquestionLabel, type Questionnaire, type Subquestion } from '@learning/shared';
 import type { UseFormRegister } from 'react-hook-form';
 import { api } from '../../api/client';
 import { clearDraft, loadDraft, saveDraft } from './draftAnswers';
@@ -61,7 +61,7 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
             {q.subquestions.length ? (
               <div className="space-y-4 border-l-2 border-slate-200 pl-4">
                 {q.subquestions.map((sq, j) => (
-                  <AnswerInput key={sq.id} q={sq} label={`${number}${subquestionLabel(j)}`} heading={`${subquestionLabel(j)})`} register={register} />
+                  <AnswerInput key={sq.id} q={sq} label={questionLabel(i + 1, j)} heading={`${subquestionLabel(j)})`} register={register} />
                 ))}
               </div>
             ) : (

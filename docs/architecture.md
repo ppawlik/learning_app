@@ -115,7 +115,7 @@ erDiagram
 ## Invariants
 
 - `questions.expected_answer` never leaves the server. `GET /questionnaires/:id` selects fields explicitly and a test asserts it.
-- Only answerable questions (no children) get answers, are sent to Claude for review and count in `successRate`. `GET /questionnaires/:id` returns tasks with nested `subquestions`; numbering (1, 2) and lettering (a, b) are derived from `position`.
+- Only answerable questions (no children) get answers, are sent to Claude for review and count in `successRate`. `GET /questionnaires/:id` returns tasks with nested `subquestions`; numbering (1, 2) and lettering (a, b) are derived from `position`. The review prompt gives each question a display `label` (`questionLabel` in shared: `3`, `3b`) and tells Claude to cite only labels in feedback and summary, never `questionId`, so text matches the numbers on the page.
 - `successRate` is computed by `computeSuccessRate` from the verdicts, not taken from Claude. Questions missing from Claude's review count as failed.
 - The table definitions exist twice: Drizzle in `apps/api/src/db/schema.ts` and the raw DDL in `apps/api/src/db/index.ts`. Change both.
 - Images live on disk under `uploads/<learningId>/`; the DB stores the path. HEIC/HEIF uploads are converted to JPEG with `heic-convert` (pure JS) in the upload route, so only JPEG, PNG, GIF and WebP are ever stored, served or sent to Claude.

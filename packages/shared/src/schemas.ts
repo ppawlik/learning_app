@@ -37,6 +37,10 @@ export const questionTypeSchema = z.enum(['open', 'multiple_choice']);
 /** Letter label of the subquestion at a 0-based index: 0 -> "a", 1 -> "b", ... */
 export const subquestionLabel = (index: number): string => String.fromCharCode(97 + index);
 
+/** Display number of an answerable question, as shown in the UI: "3" for a plain task, "3b" for a subquestion. */
+export const questionLabel = (taskNumber: number, subIndex: number | null): string =>
+  subIndex === null ? String(taskNumber) : `${taskNumber}${subquestionLabel(subIndex)}`;
+
 const generatedLeafSchema = z.object({
   text: z.string().min(1),
   type: questionTypeSchema,

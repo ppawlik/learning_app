@@ -17,7 +17,7 @@ export interface ImageInput {
 export interface ReviewInput {
   learningPrompt: string;
   images: ImageInput[];
-  items: { questionId: number; context: string | null; text: string; options: string[] | null; expectedAnswer: string; answer: string }[];
+  items: { questionId: number; label: string; context: string | null; text: string; options: string[] | null; expectedAnswer: string; answer: string }[];
 }
 
 /** Abstraction over Claude so routes can be tested without network calls. */
@@ -98,12 +98,12 @@ const reviewTool: Anthropic.Tool = {
           properties: {
             questionId: { type: 'integer' },
             verdict: { type: 'string', enum: ['passed', 'failed'] },
-            feedback: { type: 'string', description: 'Why the answer passed or failed, and how to improve it' },
+            feedback: { type: 'string', description: 'Why the answer passed or failed, and how to improve it. Refer to questions by their label, never by questionId' },
           },
           required: ['questionId', 'verdict', 'feedback'],
         },
       },
-      summary: { type: 'string', description: 'Descriptive overall assessment of how good the answers were' },
+      summary: { type: 'string', description: 'Overall assessment in the language of the questions, addressed to the learner (see the prompt for the structure). Refer to questions by their label (e.g. 3b), never by questionId' },
     },
     required: ['answers', 'summary'],
   },
@@ -167,6 +167,7 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
     async reviewAnswers({ learningPrompt, images, items }) {
       const payload = items.map((i) => ({
         questionId: i.questionId,
+        label: i.label,
         ...(i.context ? { taskStatement: i.context } : {}),
         question: i.text,
         options: i.options,
@@ -182,7 +183,15 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
             `Original learning instructions:\n"""\n${learningPrompt}\n"""\n` +
             `Questions, expected answers and learner answers (JSON):\n${JSON.stringify(payload, null, 2)}\n\n` +
             `Mark each answer "passed" if it is correct or substantially equivalent to the expected answer, otherwise "failed". ` +
-            `Give specific feedback per answer, plus a descriptive overall summary. Review every questionId exactly once.`,
+            `Give specific feedback per answer, plus an overall summary. ` +
+            `Write the summary in the language of the questions, addressed directly to the learner, in this shape: ` +
+            `(1) an opening sentence with the count of correct answers out of all (for example "24 z 34 odpowiedzi jest poprawnych"); ` +
+            `(2) which questions were fully correct and what skills they show, listing labels and ranges such as 1a–1d; ` +
+            `(3) a short bulleted list of the mistakes, one bullet per question or small group, each naming the label and the concrete error (what the learner did versus what was asked); ` +
+            `(4) a closing paragraph with two or three concrete tips for what to practise. ` +
+            `Keep it specific to this learner's answers rather than generic. ` +
+            `Review every questionId exactly once. ` +
+            `questionId is an internal key: use it only in the answers array. In feedback and summary, refer to a question only by its label (for example "3b"), which is the number the learner sees, never by questionId.`,
         },
       ];
       return reviewResultSchema.parse(await callTool(reviewTool, content));

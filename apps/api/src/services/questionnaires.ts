@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { questionLabel } from '@learning/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
@@ -92,6 +93,12 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
     const imgs = db.select().from(images).where(eq(images.learningId, qn.learningId)).all();
     const all = db.select().from(questions).where(eq(questions.questionnaireId, qn.id)).all();
     const parentText = new Map(all.map((q) => [q.id, q.text]));
+    const taskNumber = new Map(
+      all
+        .filter((q) => q.parentId === null)
+        .sort((a, b) => a.position - b.position)
+        .map((q, i) => [q.id, i + 1] as const),
+    );
     // Only answerable questions (not task statements that have subquestions) are reviewed.
     const parentIds = new Set(all.map((q) => q.parentId).filter((x): x is number => x !== null));
     const qs = all.filter((q) => !parentIds.has(q.id));
@@ -103,6 +110,7 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
       images: imgs,
       items: qs.map((q) => ({
         questionId: q.id,
+        label: questionLabel(taskNumber.get(q.parentId ?? q.id)!, q.parentId === null ? null : q.position),
         context: q.parentId === null ? null : (parentText.get(q.parentId) ?? null),
         text: q.text,
         options: q.options,

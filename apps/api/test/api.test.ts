@@ -238,10 +238,11 @@ describe('review retry and restart recovery', () => {
 
 describe('reviewSubmission', () => {
   it('counts questions missing from the review as failed', async () => {
+    const labels: string[] = [];
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-'));
     const app = buildApp({
       db: createDb(':memory:'),
-      claude: { ...fakeClaude, reviewAnswers: async ({ items }) => ({ answers: [{ questionId: items[0]!.questionId, verdict: 'passed', feedback: 'ok' }], summary: 's' }) },
+      claude: { ...fakeClaude, reviewAnswers: async ({ items }) => (labels.push(...items.map((i) => i.label)), { answers: [{ questionId: items[0]!.questionId, verdict: 'passed', feedback: 'ok' }], summary: 's' }) },
       uploadsDir: dir,
     });
     const { id } = (await app.inject({ method: 'POST', url: '/api/learnings', payload: { title: 'T', prompt: 'P' } })).json();
@@ -256,6 +257,8 @@ describe('reviewSubmission', () => {
     expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed', 'failed', 'failed']);
     expect(result.answers[1].feedback).toBe('No review was returned for this answer.');
     expect(result.successRate).toBe(25);
+    // Claude is given the numbers the page shows, so its summary can cite them.
+    expect(labels).toEqual(['1', '2', '3a', '3b']);
     await app.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
