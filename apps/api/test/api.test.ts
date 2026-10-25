@@ -255,7 +255,7 @@ describe('reviewSubmission', () => {
     const result = (await app.inject({ method: 'GET', url: `/api/submissions/${sub.json().id}` })).json();
     expect(result.status).toBe('reviewed');
     expect(result.answers.map((a: { verdict: string }) => a.verdict)).toEqual(['passed', 'failed', 'failed', 'failed']);
-    expect(result.answers[1].feedback).toBe('No review was returned for this answer.');
+    expect(result.answers[1].feedback).toBe('Nie otrzymano oceny tej odpowiedzi.');
     expect(result.successRate).toBe(25);
     // Claude is given the numbers the page shows, so its summary can cite them.
     expect(labels).toEqual(['1', '2', '3a', '3b']);

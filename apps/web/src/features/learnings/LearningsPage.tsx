@@ -25,28 +25,28 @@ export function LearningsPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <h2 className="mb-3 font-semibold">New learning</h2>
+        <h2 className="mb-3 font-semibold">Nowy temat</h2>
         <form onSubmit={handleSubmit((v) => create.mutate(v))} className="space-y-3">
           <div>
-            <label htmlFor="title" className="mb-1 block text-sm">Title</label>
+            <label htmlFor="title" className="mb-1 block text-sm">Tytuł</label>
             <input id="title" className={inputClass} {...register('title')} />
-            {formState.errors.title && <p className="text-xs text-red-600">Title is required</p>}
+            {formState.errors.title && <p className="text-xs text-red-600">Tytuł jest wymagany</p>}
           </div>
           <div>
-            <label htmlFor="prompt" className="mb-1 block text-sm">Prompt (what should the questionnaire cover?)</label>
+            <label htmlFor="prompt" className="mb-1 block text-sm">Polecenie (czego ma dotyczyć zestaw pytań?)</label>
             <textarea id="prompt" rows={4} className={inputClass} {...register('prompt')} />
-            {formState.errors.prompt && <p className="text-xs text-red-600">Prompt is required</p>}
+            {formState.errors.prompt && <p className="text-xs text-red-600">Polecenie jest wymagane</p>}
           </div>
           {create.error && <ErrorMessage error={create.error} />}
-          <button className={buttonClass} disabled={create.isPending}>Create learning</button>
+          <button className={buttonClass} disabled={create.isPending}>Utwórz temat</button>
         </form>
       </Card>
 
       <div>
-        <h2 className="mb-3 font-semibold">Your learnings</h2>
+        <h2 className="mb-3 font-semibold">Twoje tematy</h2>
         {isLoading && <Spinner />}
         {error && <ErrorMessage error={error} />}
-        {data?.length === 0 && <p className="text-sm text-slate-500">No learnings yet.</p>}
+        {data?.length === 0 && <p className="text-sm text-slate-500">Brak tematów.</p>}
         <ul className="space-y-2">
           {data?.map((l) => (
             <li key={l.id}>

@@ -44,12 +44,12 @@ describe('createClaudeService', () => {
 
   it('fails clearly when the output is truncated', async () => {
     create.mockResolvedValue({ ...toolUse({ questions: [] }), stop_reason: 'max_tokens' });
-    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow('ran out of output tokens');
+    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow('wyczerpał limit tokenów');
   });
 
   it('fails when Claude does not call the tool', async () => {
     create.mockResolvedValue({ stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'text', text: 'hi' }] });
-    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow('structured output');
+    await expect(createClaudeService(log, 'key').generateQuestionnaire('p', [])).rejects.toThrow('ustrukturyzowanej odpowiedzi');
   });
 
   it('rejects tool input that does not match the shared schema', async () => {

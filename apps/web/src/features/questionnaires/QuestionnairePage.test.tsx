@@ -23,7 +23,7 @@ const renderPage = () =>
 it('shows a spinner while the questionnaire is being generated', async () => {
   vi.spyOn(api, 'getQuestionnaire').mockResolvedValue({ ...base, status: 'generating' });
   renderPage();
-  expect(await screen.findByText(/claude is generating/i)).toBeInTheDocument();
+  expect(await screen.findByText(/claude generuje/i)).toBeInTheDocument();
 });
 
 it('shows the stored error when generation failed', async () => {
@@ -33,9 +33,9 @@ it('shows the stored error when generation failed', async () => {
 });
 
 it('shows an error when the questionnaire cannot be loaded', async () => {
-  vi.spyOn(api, 'getQuestionnaire').mockRejectedValue(new Error('Questionnaire not found'));
+  vi.spyOn(api, 'getQuestionnaire').mockRejectedValue(new Error('Nie znaleziono zestawu pytań'));
   renderPage();
-  expect(await screen.findByRole('alert')).toHaveTextContent('Questionnaire not found');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Nie znaleziono zestawu pytań');
 });
 
 it('numbers questions and letters subquestions, with an input for each answerable question only', async () => {
@@ -62,5 +62,5 @@ it('numbers questions and letters subquestions, with an input for each answerabl
   expect(screen.getByText('2. Statement')).toBeInTheDocument();
   expect(screen.getByText('a) First')).toBeInTheDocument();
   expect(screen.getByText('b) Second')).toBeInTheDocument();
-  expect(screen.getAllByRole('textbox').map((t) => t.getAttribute('aria-label'))).toEqual(['Answer 1', 'Answer 2a', 'Answer 2b']);
+  expect(screen.getAllByRole('textbox').map((t) => t.getAttribute('aria-label'))).toEqual(['Odpowiedź 1', 'Odpowiedź 2a', 'Odpowiedź 2b']);
 });

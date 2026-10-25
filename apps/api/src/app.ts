@@ -23,13 +23,13 @@ export function buildApp(deps: AppDeps) {
 
   app.setErrorHandler((err: unknown, _req, reply) => {
     if (err instanceof ZodError) {
-      return reply.status(400).send({ error: 'Validation failed', issues: err.issues });
+      return reply.status(400).send({ error: 'Nieprawidłowe dane', issues: err.issues });
     }
     const e = err as { statusCode?: number; message?: string };
     const status = e.statusCode ?? 500;
     if (status >= 500) app.log.error(err);
     else app.log.warn({ status, err: e.message }, 'request rejected');
-    return reply.status(status).send({ error: status >= 500 ? 'Internal server error' : e.message });
+    return reply.status(status).send({ error: status >= 500 ? 'Wewnętrzny błąd serwera' : e.message });
   });
 
   app.register(async (api) => {

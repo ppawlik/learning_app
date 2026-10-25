@@ -18,9 +18,9 @@ export function QuestionnairePage() {
   });
 
   if (isLoading) return <Spinner />;
-  if (error || !data) return <ErrorMessage error={error ?? new Error('Not found')} />;
-  if (data.status === 'generating') return <Spinner label="Claude is generating your questionnaire…" />;
-  if (data.status === 'failed') return <ErrorMessage error={new Error(data.error ?? 'Generation failed')} />;
+  if (error || !data) return <ErrorMessage error={error ?? new Error('Nie znaleziono')} />;
+  if (data.status === 'generating') return <Spinner label="Claude generuje Twój zestaw pytań…" />;
+  if (data.status === 'failed') return <ErrorMessage error={new Error(data.error ?? 'Generowanie nie powiodło się')} />;
   return <AnswerForm questionnaire={data} />;
 }
 
@@ -51,7 +51,7 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
       className="space-y-4"
     >
       <Link to={`/learnings/${questionnaire.learningId}`} className="text-sm text-indigo-600 hover:underline">
-        ← Back to learning
+        ← Wróć do tematu
       </Link>
       {questionnaire.questions.map((q, i) => {
         const number = String(i + 1);
@@ -72,7 +72,7 @@ export function AnswerForm({ questionnaire }: { questionnaire: Questionnaire }) 
       })}
       {submit.error && <ErrorMessage error={submit.error} />}
       <button className={buttonClass} disabled={submit.isPending}>
-        {submit.isPending ? 'Submitting…' : 'Submit answers'}
+        {submit.isPending ? 'Wysyłanie…' : 'Wyślij odpowiedzi'}
       </button>
     </form>
   );
@@ -93,7 +93,7 @@ function AnswerInput({
     <div>
       {heading && <p className="mb-2 text-sm font-medium">{heading} {q.text}</p>}
       {q.type === 'multiple_choice' && q.options ? (
-        <fieldset className="space-y-1" aria-label={`Answer ${label}`}>
+        <fieldset className="space-y-1" aria-label={`Odpowiedź ${label}`}>
           {q.options.map((o) => (
             <label key={o} className="flex items-center gap-2 text-sm">
               <input type="radio" value={o} {...register(`answers.${q.id}`)} /> {o}
@@ -101,7 +101,7 @@ function AnswerInput({
           ))}
         </fieldset>
       ) : (
-        <textarea aria-label={`Answer ${label}`} rows={3} className={inputClass} {...register(`answers.${q.id}`)} />
+        <textarea aria-label={`Odpowiedź ${label}`} rows={3} className={inputClass} {...register(`answers.${q.id}`)} />
       )}
     </div>
   );

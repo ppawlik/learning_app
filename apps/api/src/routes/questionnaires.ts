@@ -14,7 +14,7 @@ export const questionnaireRoutes =
     app.get('/questionnaires/:id', async (req) => {
       const { id } = idParams.parse(req.params);
       const q = db.select().from(questionnaires).where(eq(questionnaires.id, id)).get();
-      if (!q) throw new HttpError(404, 'Questionnaire not found');
+      if (!q) throw new HttpError(404, 'Nie znaleziono zestawu pytań');
       const qs = db.select().from(questions).where(eq(questions.questionnaireId, id)).orderBy(asc(questions.position)).all();
       // expectedAnswer is intentionally omitted
       const view = (x: (typeof qs)[number]) => ({ id: x.id, position: x.position, text: x.text, type: x.type, options: x.options });
@@ -34,13 +34,13 @@ export const questionnaireRoutes =
       const { id } = idParams.parse(req.params);
       const body = submitAnswersSchema.parse(req.body);
       const q = db.select().from(questionnaires).where(eq(questionnaires.id, id)).get();
-      if (!q) throw new HttpError(404, 'Questionnaire not found');
-      if (q.status !== 'ready') throw new HttpError(409, 'Questionnaire is not ready');
+      if (!q) throw new HttpError(404, 'Nie znaleziono zestawu pytań');
+      if (q.status !== 'ready') throw new HttpError(409, 'Zestaw pytań nie jest gotowy');
       const qs = db.select().from(questions).where(eq(questions.questionnaireId, id)).all();
       const parentIds = new Set(qs.map((x) => x.parentId).filter((x): x is number => x !== null));
       const answerable = qs.filter((x) => !parentIds.has(x.id));
       const valid = new Set(answerable.map((x) => x.id));
-      if (body.answers.some((a) => !valid.has(a.questionId))) throw new HttpError(400, 'Unknown question id');
+      if (body.answers.some((a) => !valid.has(a.questionId))) throw new HttpError(400, 'Nieznane pytanie');
 
       const given = new Map(body.answers.map((a) => [a.questionId, a.answer]));
       const sub = db.transaction((tx) => {
@@ -58,8 +58,8 @@ export const questionnaireRoutes =
     app.post('/submissions/:id/retry', async (req, reply) => {
       const { id } = idParams.parse(req.params);
       const s = db.select().from(submissions).where(eq(submissions.id, id)).get();
-      if (!s) throw new HttpError(404, 'Submission not found');
-      if (s.status !== 'failed') throw new HttpError(409, 'Only a failed review can be retried');
+      if (!s) throw new HttpError(404, 'Nie znaleziono podejścia');
+      if (s.status !== 'failed') throw new HttpError(409, 'Ponowić można tylko nieudaną ocenę');
       db.update(submissions).set({ status: 'reviewing', error: null }).where(eq(submissions.id, id)).run();
       req.log.info({ submissionId: id }, 'review retried');
       void reviewSubmission(db, claude, id, req.log);
@@ -69,7 +69,7 @@ export const questionnaireRoutes =
     app.get('/submissions/:id', async (req) => {
       const { id } = idParams.parse(req.params);
       const s = db.select().from(submissions).where(eq(submissions.id, id)).get();
-      if (!s) throw new HttpError(404, 'Submission not found');
+      if (!s) throw new HttpError(404, 'Nie znaleziono podejścia');
       const qs = db
         .select()
         .from(questions)

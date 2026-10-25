@@ -9,7 +9,7 @@ export function App() {
     <div className="mx-auto max-w-3xl px-4 py-6">
       <header className="mb-6">
         <Link to="/" className="text-xl font-semibold">
-          Learning App
+          Aplikacja do nauki
         </Link>
       </header>
       <main>
@@ -18,7 +18,7 @@ export function App() {
           <Route path="/learnings/:id" element={<LearningDetailPage />} />
           <Route path="/questionnaires/:id" element={<QuestionnairePage />} />
           <Route path="/submissions/:id" element={<SubmissionPage />} />
-          <Route path="*" element={<p>Page not found.</p>} />
+          <Route path="*" element={<p>Nie znaleziono strony.</p>} />
         </Routes>
       </main>
     </div>

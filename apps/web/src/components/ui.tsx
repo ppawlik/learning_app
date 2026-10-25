@@ -7,12 +7,12 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 export function ErrorMessage({ error }: { error: unknown }) {
   return (
     <p role="alert" className="rounded bg-red-50 p-3 text-sm text-red-700">
-      {error instanceof Error ? error.message : 'Something went wrong'}
+      {error instanceof Error ? error.message : 'Coś poszło nie tak'}
     </p>
   );
 }
 
-export function Spinner({ label = 'Loading…' }: { label?: string }) {
+export function Spinner({ label = 'Ładowanie…' }: { label?: string }) {
   return (
     <p role="status" className="text-sm text-slate-500">
       {label}

@@ -29,12 +29,12 @@ export function LearningDetailPage() {
     mutationFn: async (files: File[]) => {
       setUploadError(null);
       for (const f of files) {
-        if (!isHeicFile(f.type, f.name) && !(ALLOWED_IMAGE_TYPES as readonly string[]).includes(f.type)) throw new Error(`${f.name}: unsupported type`);
-        if (f.size > MAX_IMAGE_BYTES) throw new Error(`${f.name}: larger than 5 MB`);
+        if (!isHeicFile(f.type, f.name) && !(ALLOWED_IMAGE_TYPES as readonly string[]).includes(f.type)) throw new Error(`${f.name}: nieobsługiwany typ pliku`);
+        if (f.size > MAX_IMAGE_BYTES) throw new Error(`${f.name}: większy niż 5 MB`);
         await api.uploadImage(id, f);
       }
     },
-    onError: (e) => setUploadError(e instanceof Error ? e.message : 'Upload failed'),
+    onError: (e) => setUploadError(e instanceof Error ? e.message : 'Nie udało się przesłać pliku'),
     onSettled: refresh,
   });
   const removeImage = useMutation({ mutationFn: api.deleteImage, onSuccess: refresh });
@@ -48,7 +48,7 @@ export function LearningDetailPage() {
   });
 
   if (isLoading) return <Spinner />;
-  if (error || !data) return <ErrorMessage error={error ?? new Error('Not found')} />;
+  if (error || !data) return <ErrorMessage error={error ?? new Error('Nie znaleziono')} />;
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -66,31 +66,31 @@ export function LearningDetailPage() {
           </div>
           <button
             className="text-sm text-red-600 hover:underline"
-            onClick={() => window.confirm('Delete this learning?') && remove.mutate()}
+            onClick={() => window.confirm('Usunąć ten temat?') && remove.mutate()}
           >
-            Delete
+            Usuń
           </button>
         </div>
       </Card>
 
       <Card>
-        <h2 className="mb-3 font-semibold">Images</h2>
+        <h2 className="mb-3 font-semibold">Obrazy</h2>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           className={`rounded border-2 border-dashed p-6 text-center text-sm ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300'}`}
         >
-          <p className="mb-2 text-slate-500">Drag and drop images here (JPEG, PNG, GIF, WebP, HEIC, max 5 MB)</p>
+          <p className="mb-2 text-slate-500">Przeciągnij i upuść obrazy tutaj (JPEG, PNG, GIF, WebP, HEIC, maks. 5 MB)</p>
           <button type="button" className={buttonClass} onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
-            {upload.isPending ? 'Uploading…' : 'Choose files'}
+            {upload.isPending ? 'Przesyłanie…' : 'Wybierz pliki'}
           </button>
           <input
             ref={inputRef}
             type="file"
             multiple
             accept={UPLOAD_IMAGE_ACCEPT}
-            aria-label="Upload images"
+            aria-label="Prześlij obrazy"
             className="hidden"
             onChange={(e) => {
               upload.mutate(Array.from(e.target.files ?? []));
@@ -104,7 +104,7 @@ export function LearningDetailPage() {
             <li key={img.id} className="relative">
               <img src={api.imageUrl(img.id)} alt={img.filename} className="h-32 w-full rounded object-cover" />
               <button
-                aria-label={`Remove ${img.filename}`}
+                aria-label={`Usuń ${img.filename}`}
                 className="absolute right-1 top-1 rounded bg-white/90 px-2 text-sm"
                 onClick={() => removeImage.mutate(img.id)}
               >
@@ -117,16 +117,16 @@ export function LearningDetailPage() {
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">Questionnaires</h2>
+          <h2 className="font-semibold">Zestawy pytań</h2>
           <button
             className={buttonClass}
             disabled={data.images.length === 0 || generate.isPending}
             onClick={() => generate.mutate()}
           >
-            Generate questionnaire
+            Wygeneruj zestaw pytań
           </button>
         </div>
-        {data.images.length === 0 && <p className="text-sm text-slate-500">Upload at least one image to generate a questionnaire.</p>}
+        {data.images.length === 0 && <p className="text-sm text-slate-500">Prześlij co najmniej jeden obraz, aby wygenerować zestaw pytań.</p>}
         {generate.error && <ErrorMessage error={generate.error} />}
         <ul className="space-y-2">
           {data.questionnaires.map((q) => {
@@ -134,19 +134,19 @@ export function LearningDetailPage() {
             return (
               <li key={q.id} className="rounded border border-slate-200 p-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span>Questionnaire #{q.id} · {new Date(q.createdAt).toLocaleString()}</span>
-                  {q.status === 'generating' && <span className="text-slate-500">Generating…</span>}
-                  {q.status === 'failed' && <span className="text-red-600">Failed</span>}
-                  {q.status === 'ready' && <Link className="text-indigo-600 hover:underline" to={`/questionnaires/${q.id}`}>Open</Link>}
+                  <span>Zestaw pytań #{q.id} · {new Date(q.createdAt).toLocaleString('pl-PL')}</span>
+                  {q.status === 'generating' && <span className="text-slate-500">Generowanie…</span>}
+                  {q.status === 'failed' && <span className="text-red-600">Niepowodzenie</span>}
+                  {q.status === 'ready' && <Link className="text-indigo-600 hover:underline" to={`/questionnaires/${q.id}`}>Otwórz</Link>}
                 </div>
                 {subs.length > 0 && (
                   <ul className="mt-2 space-y-1 border-t pt-2">
                     {subs.map((s) => (
                       <li key={s.id}>
                         <Link className="text-indigo-600 hover:underline" to={`/submissions/${s.id}`}>
-                          Submission #{s.id}
+                          Podejście #{s.id}
                         </Link>{' '}
-                        {s.status === 'reviewed' ? `· ${s.successRate}% passed` : s.status === 'failed' ? '· review failed' : '· reviewing…'}
+                        {s.status === 'reviewed' ? `· ${s.successRate}% poprawnych` : s.status === 'failed' ? '· ocena nie powiodła się' : '· ocenianie…'}
                       </li>
                     ))}
                   </ul>

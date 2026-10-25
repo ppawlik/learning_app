@@ -38,7 +38,7 @@ export const learningRoutes =
   async (app) => {
     const getLearning = (id: number) => {
       const l = db.select().from(learnings).where(eq(learnings.id, id)).get();
-      if (!l) throw new HttpError(404, 'Learning not found');
+      if (!l) throw new HttpError(404, 'Nie znaleziono tematu');
       return l;
     };
 
@@ -82,17 +82,17 @@ export const learningRoutes =
       getLearning(id);
       const existing = db.select({ n: count() }).from(images).where(eq(images.learningId, id)).get()!.n;
       if (existing >= MAX_IMAGES_PER_LEARNING) {
-        throw new HttpError(400, `At most ${MAX_IMAGES_PER_LEARNING} images per learning`);
+        throw new HttpError(400, `Co najwyżej ${MAX_IMAGES_PER_LEARNING} obrazów na temat`);
       }
       const file = await req.file();
-      if (!file) throw new HttpError(400, 'No file uploaded');
+      if (!file) throw new HttpError(400, 'Nie przesłano pliku');
       const heic = isHeicFile(file.mimetype, file.filename);
       if (!heic && !(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.mimetype)) {
         file.file.resume();
-        throw new HttpError(400, 'Only JPEG, PNG, GIF, WebP and HEIC images are allowed');
+        throw new HttpError(400, 'Dozwolone są tylko obrazy JPEG, PNG, GIF, WebP i HEIC');
       }
       let buffer = await file.toBuffer();
-      if (file.file.truncated) throw new HttpError(413, 'Image exceeds the 5 MB limit');
+      if (file.file.truncated) throw new HttpError(413, 'Obraz przekracza limit 5 MB');
       let mimeType = file.mimetype;
       if (heic) {
         // Claude and browsers cannot read HEIC, so store a JPEG.
@@ -100,9 +100,9 @@ export const learningRoutes =
           buffer = Buffer.from(await convert({ buffer, format: 'JPEG', quality: 0.9 }));
         } catch (err) {
           req.log.warn({ err, filename: file.filename }, 'HEIC conversion failed');
-          throw new HttpError(400, 'Could not read the HEIC image');
+          throw new HttpError(400, 'Nie udało się odczytać obrazu HEIC');
         }
-        if (buffer.length > MAX_IMAGE_BYTES) throw new HttpError(413, 'Converted image exceeds the 5 MB limit');
+        if (buffer.length > MAX_IMAGE_BYTES) throw new HttpError(413, 'Przekonwertowany obraz przekracza limit 5 MB');
         mimeType = 'image/jpeg';
       }
 
@@ -125,14 +125,14 @@ export const learningRoutes =
     app.get('/images/:id/file', async (req, reply) => {
       const { id } = idParams.parse(req.params);
       const img = db.select().from(images).where(eq(images.id, id)).get();
-      if (!img) throw new HttpError(404, 'Image not found');
+      if (!img) throw new HttpError(404, 'Nie znaleziono obrazu');
       return reply.type(img.mimeType).send(await fs.readFile(img.path));
     });
 
     app.delete('/images/:id', async (req, reply) => {
       const { id } = idParams.parse(req.params);
       const img = db.select().from(images).where(eq(images.id, id)).get();
-      if (!img) throw new HttpError(404, 'Image not found');
+      if (!img) throw new HttpError(404, 'Nie znaleziono obrazu');
       db.delete(images).where(eq(images.id, id)).run();
       await fs.rm(img.path, { force: true });
       return reply.status(204).send();
@@ -142,7 +142,7 @@ export const learningRoutes =
       const { id } = idParams.parse(req.params);
       getLearning(id);
       const n = db.select({ n: count() }).from(images).where(eq(images.learningId, id)).get()!.n;
-      if (n === 0) throw new HttpError(400, 'Upload at least one image first');
+      if (n === 0) throw new HttpError(400, 'Najpierw prześlij co najmniej jeden obraz');
       const q = db.insert(questionnaires).values({ learningId: id, status: 'generating' }).returning().get();
       req.log.info({ questionnaireId: q.id, learningId: id, imageCount: n }, 'questionnaire requested');
       void generateQuestionnaire(db, claude, q.id, req.log);

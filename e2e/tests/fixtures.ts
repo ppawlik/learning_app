@@ -25,27 +25,27 @@ export class AppPage {
 
   async createLearning(title = 'Biology basics', prompt = 'Ask about the cells shown in the pictures.') {
     await this.page.goto('/');
-    await this.page.getByLabel('Title').fill(title);
-    await this.page.getByLabel(/Prompt/).fill(prompt);
-    await this.page.getByRole('button', { name: 'Create learning' }).click();
+    await this.page.getByLabel('Tytuł').fill(title);
+    await this.page.getByLabel(/Polecenie/).fill(prompt);
+    await this.page.getByRole('button', { name: 'Utwórz temat' }).click();
     await expect(this.page.getByRole('heading', { name: title })).toBeVisible();
   }
 
   async uploadImage(name = 'cell.png') {
-    await this.page.getByLabel('Upload images').setInputFiles({ name, mimeType: 'image/png', buffer: PNG });
+    await this.page.getByLabel('Prześlij obrazy').setInputFiles({ name, mimeType: 'image/png', buffer: PNG });
     await expect(this.page.getByRole('img', { name })).toBeVisible();
   }
 
   async generateQuestionnaire() {
-    await this.page.getByRole('button', { name: 'Generate questionnaire' }).click();
-    await this.page.getByRole('link', { name: 'Open' }).click();
+    await this.page.getByRole('button', { name: 'Wygeneruj zestaw pytań' }).click();
+    await this.page.getByRole('link', { name: 'Otwórz' }).click();
     await expect(this.page.getByText('1. What object is shown in the picture?')).toBeVisible();
   }
 
   async fillAnswers(answers: { first: string; sky: string; a: string; b: string }) {
-    await this.page.getByLabel('Answer 1', { exact: true }).fill(answers.first);
+    await this.page.getByLabel('Odpowiedź 1', { exact: true }).fill(answers.first);
     await this.page.getByLabel(answers.sky, { exact: true }).check();
-    await this.page.getByLabel('Answer 3a').fill(answers.a);
-    await this.page.getByLabel('Answer 3b').fill(answers.b);
+    await this.page.getByLabel('Odpowiedź 3a').fill(answers.a);
+    await this.page.getByLabel('Odpowiedź 3b').fill(answers.b);
   }
 }

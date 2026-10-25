@@ -11,7 +11,7 @@ function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : 'Unknown error';
 }
 
-export const INTERRUPTED_MESSAGE = 'Interrupted by a server restart; please try again';
+export const INTERRUPTED_MESSAGE = 'Przerwano przez restart serwera; spróbuj ponownie';
 
 /** Jobs run in-process (ADR 0003), so any row still in progress at startup belongs to a dead process. */
 export function failInterruptedJobs(db: Db, log: FastifyBaseLogger) {
@@ -127,7 +127,7 @@ export async function reviewSubmission(db: Db, claude: ClaudeService, submission
       qs.forEach((q, i) => {
         const r = reviewByQ.get(q.id);
         tx.update(answers)
-          .set({ verdict: verdicts[i]!, feedback: r?.feedback ?? 'No review was returned for this answer.' })
+          .set({ verdict: verdicts[i]!, feedback: r?.feedback ?? 'Nie otrzymano oceny tej odpowiedzi.' })
           .where(eq(answers.id, answerByQ.get(q.id)!.id))
           .run();
       });

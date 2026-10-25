@@ -47,12 +47,12 @@ it('shows the review with the question statement printed once above its lettered
   renderPage();
   expect(await screen.findByText('67%')).toBeInTheDocument();
   expect(screen.getByText('Well done')).toBeInTheDocument();
-  expect(screen.getByText('2 of 3 answers passed')).toBeInTheDocument();
+  expect(screen.getByText('2 z 3 odpowiedzi poprawnych')).toBeInTheDocument();
   expect(screen.getByText(/1\. Plain/)).toBeInTheDocument();
   expect(screen.getAllByText('2. Statement')).toHaveLength(1);
   expect(screen.getByText(/a\) Part one/)).toBeInTheDocument();
   expect(screen.getByText(/b\) Part two/)).toBeInTheDocument();
-  expect(screen.getByText('(empty)')).toBeInTheDocument();
+  expect(screen.getByText('(puste)')).toBeInTheDocument();
 });
 
 it('shows a spinner while the review runs', async () => {
@@ -64,5 +64,5 @@ it('shows a spinner while the review runs', async () => {
     answers: [],
   });
   renderPage();
-  expect(await screen.findByText(/claude is reviewing/i)).toBeInTheDocument();
+  expect(await screen.findByText(/claude ocenia/i)).toBeInTheDocument();
 });

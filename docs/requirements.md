@@ -18,6 +18,7 @@ Single-user app; no authentication. Requirement IDs can be referenced from tests
 - **NFR-3** Claude's structured output is validated with shared Zod schemas before it is stored.
 - **NFR-5** The API listens on loopback (`127.0.0.1`) by default and is reached by browsers through the Vite proxy (ADR 0010); `HOST` overrides it.
 - **NFR-6** Jobs left in progress by a previous server process are marked `failed` at startup (ADR 0009).
+- **NFR-7** All user-visible text is Polish: the web UI (`<html lang="pl">`, dates formatted with `pl-PL`), API error messages and the fallback review feedback. Code, logs, docs and prompts to Claude stay English; Claude writes feedback and summary in the language of the questions. Labels such as `Odpowiedź 3b` are also the accessible names that tests query.
 - **NFR-4** The API logs structured JSON at a configurable level (`LOG_LEVEL`, default `info`) to stdout and a file (`LOG_FILE`, `LOG_STDOUT`), without secrets or learner content.
 
 ## Known gaps

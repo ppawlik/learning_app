@@ -138,10 +138,10 @@ export function createClaudeService(log: FastifyBaseLogger, apiKey = config.anth
       'claude response',
     );
     if (res.stop_reason === 'max_tokens') {
-      throw new Error('Claude ran out of output tokens before finishing; ask for fewer questions or use fewer images');
+      throw new Error('Claude wyczerpał limit tokenów odpowiedzi przed zakończeniem; poproś o mniej pytań lub użyj mniejszej liczby obrazów');
     }
     const block = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-    if (!block) throw new Error('Claude did not return structured output');
+    if (!block) throw new Error('Claude nie zwrócił ustrukturyzowanej odpowiedzi');
     return block.input;
   }
 

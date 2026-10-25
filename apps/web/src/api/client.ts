@@ -12,7 +12,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.error ?? `Request failed (${res.status})`);
+    throw new Error(body?.error ?? `Żądanie nie powiodło się (${res.status})`);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }

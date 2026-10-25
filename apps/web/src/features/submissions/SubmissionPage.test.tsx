@@ -30,6 +30,6 @@ it('offers to retry a failed review', async () => {
     </QueryClientProvider>,
   );
   expect(await screen.findByText(/interrupted by a server restart/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry review/i }));
+  await userEvent.click(screen.getByRole('button', { name: /ponów ocenę/i }));
   await waitFor(() => expect(retry).toHaveBeenCalledWith(5));
 });

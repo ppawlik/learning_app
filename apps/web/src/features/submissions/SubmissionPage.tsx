@@ -18,15 +18,15 @@ export function SubmissionPage() {
   });
 
   if (isLoading) return <Spinner />;
-  if (error || !data) return <ErrorMessage error={error ?? new Error('Not found')} />;
-  if (data.status === 'reviewing') return <Spinner label="Claude is reviewing your answers…" />;
+  if (error || !data) return <ErrorMessage error={error ?? new Error('Nie znaleziono')} />;
+  if (data.status === 'reviewing') return <Spinner label="Claude ocenia Twoje odpowiedzi…" />;
   if (data.status === 'failed') {
     return (
       <div className="space-y-3">
-        <ErrorMessage error={new Error(data.error ?? 'Review failed')} />
+        <ErrorMessage error={new Error(data.error ?? 'Ocena nie powiodła się')} />
         {retry.error && <ErrorMessage error={retry.error} />}
         <button className={buttonClass} disabled={retry.isPending} onClick={() => retry.mutate()}>
-          Retry review
+          Ponów ocenę
         </button>
       </div>
     );
@@ -37,9 +37,9 @@ export function SubmissionPage() {
   return (
     <div className="space-y-4">
       <Card>
-        <p className="text-sm text-slate-500">Success rate</p>
+        <p className="text-sm text-slate-500">Wynik</p>
         <p className="text-4xl font-bold">{data.successRate}%</p>
-        <p className="text-sm text-slate-500">{passed} of {data.answers.length} answers passed</p>
+        <p className="text-sm text-slate-500">{passed} z {data.answers.length} odpowiedzi poprawnych</p>
         {data.summary && <p className="mt-3 whitespace-pre-wrap text-sm">{data.summary}</p>}
       </Card>
       {data.answers.map((a, i) => {
@@ -57,10 +57,10 @@ export function SubmissionPage() {
                   a.verdict === 'passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 }`}
               >
-                {a.verdict === 'passed' ? 'Passed' : 'Failed'}
+                {a.verdict === 'passed' ? 'Poprawna' : 'Błędna'}
               </span>
             </div>
-            <p className="mt-2 text-sm"><span className="text-slate-500">Your answer:</span> {a.answer || <em>(empty)</em>}</p>
+            <p className="mt-2 text-sm"><span className="text-slate-500">Twoja odpowiedź:</span> {a.answer || <em>(puste)</em>}</p>
             <p className="mt-1 text-sm text-slate-700">{a.feedback}</p>
           </Card>
         );
